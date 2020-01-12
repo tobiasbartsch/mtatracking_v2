@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import DateTime, Boolean, Time, Date
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
@@ -37,7 +37,7 @@ class trip_id(Base):
     train_id = Column(Integer, ForeignKey('train.id'), nullable=False)
     origin_date = Column(Date, nullable=False)
     origin_time = Column(Time, nullable=False)
-    line_id = Column(String, ForeignKey('line.id'), nullable=False)
+    line_id = Column(Integer, ForeignKey('line.id'), nullable=False)
     direction = Column(String, nullable=False)
     effective_timestamp = Column(DateTime, nullable=False)
     path = Column(String, nullable=True)
@@ -127,7 +127,7 @@ class line(Base):
     __tablename__ = 'line'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, mullable=False)
+    name = Column(String, nullable=False)
 
     def __init__(self, name):
         self.name = name
