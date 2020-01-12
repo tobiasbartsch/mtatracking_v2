@@ -1,13 +1,13 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.types import DateTime, Boolean, Time, Date
+from sqlalchemy.types import DateTime, Boolean, Time, Date, Float
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
 
-class train(Base):
-    __tablename__ = 'train'
+class Train(Base):
+    __tablename__ = 'Train'
 
     id = Column(Integer, primary_key=True)
     unique_num = Column(String, nullable=False)
@@ -30,14 +30,14 @@ class train(Base):
         return self.route_id + self.direction + "_" + self.unique_num
 
 
-class trip_id(Base):
-    __tablename__ = 'trip_id'
+class Trip_id(Base):
+    __tablename__ = 'Trip_id'
 
     id = Column(Integer, primary_key=True)
-    train_id = Column(Integer, ForeignKey('train.id'), nullable=False)
+    train_id = Column(Integer, ForeignKey('Train.id'), nullable=False)
     origin_date = Column(Date, nullable=False)
     origin_time = Column(Time, nullable=False)
-    line_id = Column(Integer, ForeignKey('line.id'), nullable=False)
+    line_id = Column(Integer, ForeignKey('Line.id'), nullable=False)
     direction = Column(String, nullable=False)
     effective_timestamp = Column(DateTime, nullable=False)
     path = Column(String, nullable=True)
@@ -55,11 +55,11 @@ class trip_id(Base):
 
 # TODO consider whether this is strictly necessary. could we not
 # just stick these attributes into the stop_time_update table?
-class remaining_stops(Base):
-    __tablename__ = 'remaining_stops'
+class Remaining_stops(Base):
+    __tablename__ = 'Remaining_stops'
 
     id = Column(Integer, primary_key=True)
-    train_id = Column(Integer, ForeignKey('train.id'), nullable=False)
+    train_id = Column(Integer, ForeignKey('Train.id'), nullable=False)
     effective_timestamp = Column(DateTime, nullable=False)
 
     def __init__(self, train_id, effective_timestamp):
@@ -67,14 +67,14 @@ class remaining_stops(Base):
         self.effective_timestamp = effective_timestamp
 
 
-class stop_time_update(Base):
-    __tablename__ = 'stop_time_update'
+class Stop_time_update(Base):
+    __tablename__ = 'Stop_time_update'
 
     id = Column(Integer, primary_key=True)
     remaining_stops_id = Column(Integer,
-                                ForeignKey('remaining_stops.id'),
+                                ForeignKey('Remaining_stops.id'),
                                 nullable=False)
-    stop_id = Column(Integer, ForeignKey('stop.id'),
+    stop_id = Column(String, ForeignKey('Stop.id'),
                      nullable=False)
     arrival_time = Column(DateTime, nullable=True)
     departure_time = Column(DateTime, nullable=True)
@@ -92,29 +92,47 @@ class stop_time_update(Base):
         self.actual_track = actual_track
 
 
-class stop(Base):
-    __tablename__ = 'stop'
+class Stop(Base):
+    __tablename__ = 'Stop'
 
-    id = Column(Integer, primary_key=True)
-    code = Column(String, nullable=False)
+    id = Column(String, primary_key=True)
+    stop_code = Column(String, nullable=True)
     name = Column(String, nullable=False)
+    desc = Column(String, nullable=True)
+    stop_lat = Column(Float, nullable=True)
+    stop_lon = Column(Float, nullable=True)
+    zone_id = Column(String, nullable=True)
+    stop_url = Column(String, nullable=True)
+    location_type = Column(Integer, nullable=False)
+    parent_station = Column(String, nullable=True)
 
-    def __init__(self, code, name):
-        self.code = code
+    def __init__(self, stop_id, name, stop_code=None,
+                 desc=None, stop_lat=None, stop_lon=None,
+                 zone_id=None, stop_url=None,
+                 location_type=0, parent_station=None):
+        self.id = stop_id
+        self.stop_code = stop_code
         self.name = name
+        self.desc = desc
+        self.stop_lat = stop_lat
+        self.stop_lon = stop_lon
+        self.zone_id = zone_id
+        self.stop_url = stop_url
+        self.location_type = location_type
+        self.parent_station = parent_station
 
     def __repr__(self):
-        return self.name + ' (' + self.code + ')'
+        return self.name + ' (' + self.id + ')'
 
 
-class trains_stopped(Base):
+class Trains_stopped(Base):
     '''junction table. Which trains stopped at what stops?'''
-    __tablename__ = 'trains_stopped'
+    __tablename__ = 'Trains_stopped'
 
     id = Column(Integer, primary_key=True)
-    stop = Column(Integer, ForeignKey('stop.id'),
+    stop = Column(String, ForeignKey('Stop.id'),
                   nullable=False)
-    train_id = Column(Integer, ForeignKey('train.id'), nullable=False)
+    train_id = Column(Integer, ForeignKey('Train.id'), nullable=False)
     stop_time = Column(DateTime, nullable=False)
 
     def __init__(self, stop_id, train_id, stop_time):
@@ -123,8 +141,8 @@ class trains_stopped(Base):
         self.stop_time = stop_time
 
 
-class line(Base):
-    __tablename__ = 'line'
+class Line(Base):
+    __tablename__ = 'Line'
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
