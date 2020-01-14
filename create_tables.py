@@ -26,7 +26,11 @@ def populateStationsTable():
                         stop_url=s['stop_url'],
                         location_type=s['location_type'],
                         parent_station=s['parent_station'])
-        session.add(thisstop)
+        session.merge(thisstop)
+    # Make a catchall object for completely Unknown stations:
+
+    thisstop = Stop('Unknown', 'Unknown')
+    session.merge(thisstop)
     session.commit()
 
 

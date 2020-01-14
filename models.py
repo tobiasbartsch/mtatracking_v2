@@ -10,58 +10,10 @@ from pytz import timezone
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.types import DateTime, Boolean, Time, Date, Float
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
 
 Base = declarative_base()
-
-
-class Train(Base):
-    __tablename__ = 'Train'
-
-    # unique_num is start_date + train_id
-    unique_num = Column(String, primary_key=True)
-    route_id = Column(String, nullable=False)
-    is_assigned = Column(Boolean, nullable=True)
-    first_seen_timestamp = Column(DateTime, nullable=False)
-    is_in_system_now = Column(Boolean, nullable=False)
-
-    def __init__(self, unique_num, route_id,
-                 first_seen_timestamp, is_in_system_now,
-                 is_assigned=None):
-        self.unique_num = unique_num
-        self.route_id = route_id
-        self.is_assigned = is_assigned
-        self.first_seen_timestamp = first_seen_timestamp
-        self.is_in_system_now = is_in_system_now
-
-    def __repr__(self):
-        return self.route_id + self.direction + "_" + self.unique_num
-
-
-class Trip_update(Base):
-    __tablename__ = 'Trip_update'
-
-    id = Column(Integer, primary_key=True)
-    trip_id = Column(String, nullable=False)
-    train_unique_num = Column(String, ForeignKey('Train.unique_num'),
-                              nullable=False)
-    origin_date = Column(Date, nullable=False)
-    origin_time = Column(Time, nullable=False)
-    line_id = Column(String, nullable=False)
-    direction = Column(String, nullable=False)
-    effective_timestamp = Column(DateTime, nullable=False)
-    path = Column(String, nullable=True)
-
-    def __init__(self, trip_id, train_unique_num, origin_date,
-                 origin_time, line_id,
-                 direction, effective_timestamp, path=None):
-        self.trip_id = trip_id
-        self.train_unique_num = train_unique_num
-        self.origin_date = origin_date
-        self.origin_time = origin_time
-        self.line_id = line_id
-        self.direction = direction
-        self.effective_timestamp = effective_timestamp
-        self.path = path
 
 
 class Stop_time_update(Base):
@@ -78,6 +30,9 @@ class Stop_time_update(Base):
     scheduled_track = Column(String, nullable=True)
     actual_track = Column(String, nullable=True)
 
+    trip_update = relationship('Trip_update',
+                               back_populates='stop_time_updates')
+
     def __init__(self, trip_update_id, stop_id, arrival_time=None,
                  departure_time=None, scheduled_track=None,
                  actual_track=None):
@@ -87,6 +42,70 @@ class Stop_time_update(Base):
         self.departure_time = departure_time
         self.scheduled_track = scheduled_track
         self.actual_track = actual_track
+
+
+class Trip_update(Base):
+    __tablename__ = 'Trip_update'
+
+    id = Column(Integer, primary_key=True)
+    trip_id = Column(String, nullable=False)
+    train_unique_num = Column(String, ForeignKey('Train.unique_num'),
+                              nullable=False)
+    origin_date = Column(Date, nullable=False)
+    origin_time = Column(Time, nullable=False)
+    line_id = Column(String, nullable=False)
+    direction = Column(String, nullable=False)
+    effective_timestamp = Column(DateTime, nullable=False)
+    path = Column(String, nullable=True)
+
+    train = relationship('Train', back_populates='trip_updates')
+
+    stop_time_updates = relationship('Stop_time_update',
+                                     order_by='Stop_time_update.id',
+                                     back_populates='trip_update')
+
+    def __init__(self, trip_id, train_unique_num, origin_date,
+                 origin_time, line_id,
+                 direction, effective_timestamp, path=None):
+        self.trip_id = trip_id
+        self.train_unique_num = train_unique_num
+        self.origin_date = origin_date
+        self.origin_time = origin_time
+        self.line_id = line_id
+        self.direction = direction
+        self.effective_timestamp = effective_timestamp
+        self.path = path
+
+
+class Train(Base):
+    __tablename__ = 'Train'
+
+    # unique_num is start_date + train_id
+    unique_num = Column(String, primary_key=True)
+    route_id = Column(String, nullable=False)
+    is_assigned = Column(Boolean, nullable=True)
+    first_seen_timestamp = Column(DateTime, nullable=False)
+    is_in_system_now = Column(Boolean, nullable=False)
+
+    trip_updates = relationship('Trip_update',
+                                order_by='desc(Trip_update.id)',
+                                back_populates='train')
+
+    stopped_at = relationship('Trains_stopped',
+                              order_by='desc(Trains_stopped.id)',
+                              back_populates='train')
+
+    def __init__(self, unique_num, route_id,
+                 first_seen_timestamp, is_in_system_now,
+                 is_assigned=None):
+        self.unique_num = unique_num
+        self.route_id = route_id
+        self.is_assigned = is_assigned
+        self.first_seen_timestamp = first_seen_timestamp
+        self.is_in_system_now = is_in_system_now
+
+    def __repr__(self):
+        return self.unique_num
 
 
 class Stop(Base):
@@ -102,6 +121,11 @@ class Stop(Base):
     stop_url = Column(String, nullable=True)
     location_type = Column(Integer, nullable=False)
     parent_station = Column(String, nullable=True)
+
+    trains_stopped_here = relationship(
+                              'Trains_stopped',
+                              order_by='desc(Trains_stopped.id)',
+                              back_populates='stop')
 
     def __init__(self, stop_id, name, stop_code=None,
                  desc=None, stop_lat=None, stop_lon=None,
@@ -127,14 +151,19 @@ class Trains_stopped(Base):
     __tablename__ = 'Trains_stopped'
 
     id = Column(Integer, primary_key=True)
-    stop = Column(String, ForeignKey('Stop.id'),
-                  nullable=False)
-    train_id = Column(String, ForeignKey('Train.unique_num'), nullable=False)
+    stop_id = Column(String, ForeignKey('Stop.id'),
+                     nullable=False)
+    train_unique_num = Column(String,
+                              ForeignKey('Train.unique_num'),
+                              nullable=False)
     stop_time = Column(DateTime, nullable=False)
 
-    def __init__(self, stop_id, train_id, stop_time):
-        self.stop = stop_id
-        self.train_id = train_id
+    train = relationship('Train', back_populates='stopped_at')
+    stop = relationship('Stop', back_populates='trains_stopped_here')
+
+    def __init__(self, stop_id, train_unique_num, stop_time):
+        self.stop_id = stop_id
+        self.train_unique_num = train_unique_num
         self.stop_time = stop_time
 
 
@@ -157,6 +186,21 @@ class SubwaySystem:
         # a stop is in the database without performing a query:
         self.stop_ids = [s.id for s in session.query(Stop).all()]
 
+        # keep a dictionary of trains currently in the system
+        # (and their arr stations). This will allow us to determine
+        # whether a train stopped at a station without querying the
+        # database
+        current_trains = self.session.query(Train).\
+            filter_by(is_in_system_now=True)
+        if current_trains:
+            self.curr_trains_dict = {train.unique_num: train.trip_updates[0].
+                                     stop_time_updates[0].stop_id
+                                     if train.trip_updates[0].stop_time_updates
+                                     else 'Unknown'
+                                     for train in current_trains}
+        else:
+            self.curr_trains_dict = {}
+
     def attach_tracking_data(self, data):
         """Process the protocol buffer feed and populate our
         subway model with its data.
@@ -166,49 +210,94 @@ class SubwaySystem:
                   trip_update, vehicle, or alert feed entities
                   (presumably downloaded from the MTA realtime stream).
                   One message per requested feed.
+                  The data MUST contain all tracked trains across the
+                  entire subway system. If a train
+                  is no longer in this feed, we assume that it
+                  arrived at the last station it had been
+                  traveling to and is longer in service.
         """
         # get the trains that are currently in the system:
-
+        # we will remove entries from this list while processing FeedEntities.
+        # The trains left in this list are the ones that are no longer in
+        # the feed.
+        leftover_train_uniques = set(list(self.curr_trains_dict.keys()))
+        current_time = None
         for message in data:
             current_time = message.header.timestamp
+            print('working on timestamp: ' + str(current_time))
             for FeedEntity in message.entity:
                 if len(FeedEntity.trip_update.trip.trip_id) > 0:
                     # entity type "trip_update"
-                    self._processTripUpdate(FeedEntity, current_time)
+                    leftover_train_uniques = self._processTripUpdate(
+                                            FeedEntity,
+                                            current_time,
+                                            leftover_train_uniques)
                 if len(FeedEntity.vehicle.trip.trip_id) > 0:
                     # entity type "vehicle"
-                    # self._processVehicleMessage(FeedEntity, current_time)
+                    # leftover_train_uniques = self\
+                    #     ._processVehicleMessage(FeedEntity, current_time,
+                    #                             leftover_train_uniques)
                     pass
                 if len(FeedEntity.alert.header_text.translation) > 0:
                     # alert message
-                    # self._processAlertMessage(FeedEntity, current_time)
+                    # leftover_train_uniques = self\
+                    #     ._processAlertMessage(FeedEntity, current_time,
+                    #                           leftover_train_uniques)
                     pass
+        # any leftover trains have stopped at their last known stations
+        # register their arrival, set their 'is_in_system_now=False'
+        self._performCleanup(current_time, leftover_train_uniques)
         self.session.commit()
 
-    def _processTripUpdate(self, FeedEntity, current_time):
+    def _performCleanup(self, current_time, leftover_train_uniques):
+        """Set the is_in_system_now attribute of the leftover trains to False.
+        Register the arrival of these trains at their last known stations.
+        """
+        if leftover_train_uniques:
+            # make DateTime object from current_time
+            current_time_dt = ddatetime.fromtimestamp(current_time)
+            current_time_dt = timezone('US/Eastern').localize(current_time_dt)
+
+            print('performing clean up on the following trains: '
+                  + ' '.join(list(leftover_train_uniques)))
+            leftover_trains = self.session.query(Train).filter(
+                Train.unique_num.in_(leftover_train_uniques)).all()
+            for train in leftover_trains:
+                train.is_in_system_now = False
+                stopped_at = self.curr_trains_dict[train.unique_num]
+                this_train_stopped = Trains_stopped(stopped_at,
+                                                    train.unique_num,
+                                                    current_time_dt)
+                self.session.add(this_train_stopped)
+        else:
+            print('No trains left the system')
+
+    def _processTripUpdate(self, FeedEntity, current_time,
+                           leftover_train_uniques):
         """Add data contained in the Protobuffer's Trip Update FeedEntity
         to the subway system.
 
         Args:
             FeedEntity: TripUpdate FeedEntity (from protobuffer).
             current_time (timestamp): Timestamp in seconds since 1970
+            leftover_train_uniques (list of strings): Unique numbers of
+                                            trains that had been in the system
+                                            before we processed messages.
         """
         # make DateTime object from current_time
         current_time_dt = ddatetime.fromtimestamp(current_time)
         current_time_dt = timezone('US/Eastern').localize(current_time_dt)
 
-        # Get the trains currently in the subway system:
-        # current_trains = self.session.query(Train).filter_by(is_in_system_now=True)
-
         # Add current train to database
-        train_id = FeedEntity.trip_update.trip.Extensions[nyct_subway_pb2.nyct_trip_descriptor].train_id
+        train_id = FeedEntity.trip_update.trip\
+            .Extensions[nyct_subway_pb2.nyct_trip_descriptor].train_id
         origin_date = FeedEntity.trip_update.trip.start_date
         unique_num = origin_date + ": " + train_id
         origin_date = datetime.datetime.strptime(origin_date, "%Y%m%d").date()
         route_id = FeedEntity.trip_update.trip.route_id
-        is_assigned = FeedEntity.trip_update.trip.Extensions[nyct_subway_pb2.nyct_trip_descriptor].is_assigned
+        is_assigned = FeedEntity.trip_update.trip\
+            .Extensions[nyct_subway_pb2.nyct_trip_descriptor].is_assigned
 
-        print('working on train: ' + unique_num)
         this_train = Train(unique_num=unique_num, route_id=route_id,
                            first_seen_timestamp=current_time_dt,
                            is_in_system_now=True,
@@ -238,7 +327,7 @@ class SubwaySystem:
 
         self.session.add(this_trip)
 
-        # need to call this auto-populate the Trip_update id:
+        # need to call this to auto-populate the Trip_update id:
         self.session.flush()
 
         # Add stop time updates to database
@@ -259,12 +348,15 @@ class SubwaySystem:
 
             departure_time = stu.departure.time
             departure_time_dt = ddatetime.fromtimestamp(departure_time)
-            departure_time_dt = timezone('US/Eastern').localize(departure_time_dt)
+            departure_time_dt = timezone('US/Eastern').\
+                localize(departure_time_dt)
 
-            scheduled_track = stu.Extensions[nyct_subway_pb2.\
-                                             nyct_stop_time_update].scheduled_track
-            actual_track = stu.Extensions[nyct_subway_pb2.\
-                                          nyct_stop_time_update].actual_track
+            scheduled_track = stu.\
+                Extensions[nyct_subway_pb2.
+                           nyct_stop_time_update].scheduled_track
+            actual_track = stu.\
+                Extensions[nyct_subway_pb2.
+                           nyct_stop_time_update].actual_track
             this_stu = Stop_time_update(trip_update_id=this_trip.id,
                                         stop_id=stop_id,
                                         arrival_time=arrival_time_dt,
@@ -272,6 +364,36 @@ class SubwaySystem:
                                         scheduled_track=scheduled_track,
                                         actual_track=actual_track)
             self.session.add(this_stu)
+
+        # determine whether our train has just stopped at a station:
+        stopped_at = None
+        if this_train.unique_num in self.curr_trains_dict:
+            # we processed this train:
+            leftover_train_uniques.remove(this_train.unique_num)
+            if FeedEntity.trip_update.stop_time_update[0].stop_id is not\
+                    self.curr_trains_dict[this_train.unique_num]:
+                # we just stopped at curr_trains_dict[this_train.unique_num]
+                stopped_at = self.curr_trains_dict[this_train.unique_num]
+                # set new arrival station for our train:
+                self.curr_trains_dict[this_train.unique_num] = FeedEntity\
+                    .trip_update.stop_time_update[0].stop_id
+        else:
+            # register this train with our dictionary
+            if FeedEntity.trip_update.stop_time_update:
+                self.curr_trains_dict[this_train.unique_num] = FeedEntity\
+                        .trip_update.stop_time_update[0].stop_id
+            else:
+                self.curr_trains_dict[this_train.unique_num] = 'Unknown'
+        # TODO figure out which trains vanished from the feed. Remove them from
+        # the dictionary and set their last arrival station
+
+        if stopped_at:
+            this_train_stopped = Trains_stopped(stopped_at,
+                                                this_train.unique_num,
+                                                current_time_dt)
+            self.session.add(this_train_stopped)
+
+        return leftover_train_uniques
 
     def direction_to_str(self, direction):
         """convert a direction number (1, 2, 3, 4) to a string (N, E, S, W)
