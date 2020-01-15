@@ -653,16 +653,17 @@ class SubwaySystem_bulk_updater:
         if this_train.unique_num in self.curr_trains_arr_st_dict:
             # we processed this train:
             leftover_train_uniques.remove(this_train.unique_num)
-            if FeedEntity.trip_update.stop_time_update[0].stop_id is not\
-                    self.curr_trains_arr_st_dict[this_train.unique_num]:
-                # we just stopped at
-                # curr_trains_arr_st_dict[this_train.unique_num]
-                stopped_at = self.curr_trains_arr_st_dict[
-                    this_train.unique_num]
-                # set new arrival station for our train:
-                self.curr_trains_arr_st_dict[
-                    this_train.unique_num] = FeedEntity\
-                    .trip_update.stop_time_update[0].stop_id
+            if FeedEntity.trip_update.stop_time_update:
+                if FeedEntity.trip_update.stop_time_update[0].stop_id is not\
+                        self.curr_trains_arr_st_dict[this_train.unique_num]:
+                    # we just stopped at
+                    # curr_trains_arr_st_dict[this_train.unique_num]
+                    stopped_at = self.curr_trains_arr_st_dict[
+                        this_train.unique_num]
+                    # set new arrival station for our train:
+                    self.curr_trains_arr_st_dict[
+                        this_train.unique_num] = FeedEntity\
+                        .trip_update.stop_time_update[0].stop_id
         else:
             # register this train with our dictionary
             if FeedEntity.trip_update.stop_time_update:
