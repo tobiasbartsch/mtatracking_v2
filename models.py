@@ -480,12 +480,28 @@ class SubwaySystem_bulk_updater:
         # now perform bulk update of everything at once. I wonder whether I
         # can just make one long list of stuff.
 
+        # first check train and trip_updates for items that are already in the
+        # database. We cannot add duplicates, so we have to merge for which
+        # there is no bulk operation
+        # see here: https://stackoverflow.com/questions/25955200/
+        # sqlalchemy-performing-a-bulk-upsert-if-exists-update-else-insert-in-postgr
+        self._upsert(Train, self.trains_dict)
+        self._upsert(Trip_update, self.trip_update_dict)
+        self.session.commit()
+
+        # finally do our bulk update
         objs = list(self.trains_dict.values())\
             + list(self.trip_update_dict.values())\
             + list(self.stop_time_update_dict.values())\
             + list(self.trains_stopped_dict.values())
         self.session.bulk_save_objects(objs)
         self.session.commit()
+
+    def _upsert(self, objectcls, objectdict):
+        '''helper function to perfrom upserts in SQLAlchemy'''
+        for each in self.session.query(objectcls)\
+                .filter(objectcls.id.in_(objectdict.keys())).all():
+            self.session.merge(objectdict.pop(each.id))
 
     def attach_tracking_data(self, data):
         """Process the protocol buffer feed and populate our
