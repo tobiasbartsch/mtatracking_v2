@@ -24,9 +24,10 @@ class Stop_time_update(Base):
     trip_update = relationship('Trip_update',
                                back_populates='stop_time_updates')
 
-    def __init__(self, trip_update_id, stop_id, arrival_time=None,
+    def __init__(self, id, trip_update_id, stop_id, arrival_time=None,
                  departure_time=None, scheduled_track=None,
                  actual_track=None):
+        self.id = id
         self.trip_update_id = trip_update_id
         self.stop_id = stop_id
         self.arrival_time = arrival_time
@@ -155,7 +156,12 @@ class Trains_stopped(Base):
     train = relationship('Train', back_populates='stopped_at')
     stop = relationship('Stop', back_populates='trains_stopped_here')
 
-    def __init__(self, stop_id, train_unique_num, stop_time):
+    def __init__(self, id, stop_id, train_unique_num, stop_time):
+        self.id = id
         self.stop_id = stop_id
         self.train_unique_num = train_unique_num
         self.stop_time = stop_time
+
+    def __repr__(self):
+        return f'{self.train_unique_num}'\
+            f' stopped at {self.stop_id} at {self.stop_time}'
