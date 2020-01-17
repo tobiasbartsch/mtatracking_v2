@@ -80,6 +80,7 @@ class Train(Base):
     first_seen_timestamp = Column(DateTime, nullable=False)
     is_in_system_now = Column(Boolean, nullable=False)
     next_station = Column(String, nullable=True)
+    is_delayed = Column(Boolean, nullable=True)
 
     trip_updates = relationship('Trip_update',
                                 order_by='desc(Trip_update.id)',
@@ -91,13 +92,15 @@ class Train(Base):
 
     def __init__(self, unique_num, route_id,
                  first_seen_timestamp, is_in_system_now,
-                 is_assigned=None, next_station=None):
+                 is_assigned=None, next_station=None,
+                 is_delayed=None):
         self.unique_num = unique_num
         self.route_id = route_id
         self.is_assigned = is_assigned
         self.first_seen_timestamp = first_seen_timestamp
         self.is_in_system_now = is_in_system_now
         self.next_station = next_station
+        self.is_delayed = is_delayed
 
     def __repr__(self):
         return self.unique_num
@@ -142,7 +145,8 @@ class Stop(Base):
 
 
 class Trains_stopped(Base):
-    '''junction table. Which trains stopped at what stops?'''
+    '''junction table. Which trains stopped at what stops?
+    When? Were they delayed?'''
     __tablename__ = 'Trains_stopped'
 
     id = Column(Integer, primary_key=True)
@@ -152,15 +156,20 @@ class Trains_stopped(Base):
                               ForeignKey('Train.unique_num'),
                               nullable=False)
     stop_time = Column(DateTime, nullable=False)
+    delayed = Column(Boolean, nullable=False)
+    delayed_MTA = Column(Boolean, nullable=False)
 
     train = relationship('Train', back_populates='stopped_at')
     stop = relationship('Stop', back_populates='trains_stopped_here')
 
-    def __init__(self, id, stop_id, train_unique_num, stop_time):
+    def __init__(self, id, stop_id, train_unique_num, stop_time,
+                 delayed, delayed_MTA):
         self.id = id
         self.stop_id = stop_id
         self.train_unique_num = train_unique_num
         self.stop_time = stop_time
+        self.delayed = delayed
+        self.delayed_MTA = delayed_MTA
 
     def __repr__(self):
         return f'{self.train_unique_num}'\
