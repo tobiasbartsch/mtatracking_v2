@@ -1,11 +1,12 @@
-# homemade modules
-import sys
-sys.path.append('/home/tbartsch/source/repos')
+
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from models import Base, Stop
+# homemade modules
+# import sys
+# sys.path.append('/home/tbartsch/source/repos')
 
-from mtatracking_v2.models import Base, Stop
 
 engine = create_engine('postgresql://tbartsch:test@localhost/mtatrackingv2')
 
