@@ -1,4 +1,7 @@
 from pkgutil import get_data
+from mtatracking_v2.STaSI import w1, fitSTaSIModel, sdevFromW1
+import numpy as np
+from mtatracking_v2.models import Transit_time_fit
 
 
 def getTransitTimes(origin_id, dest_id, line_id,
@@ -27,3 +30,72 @@ def getTransitTimes(origin_id, dest_id, line_id,
                                        time_start, time_end)
         ).fetchall()
     return transit_times
+
+
+def computeMeanTransitTimes(transit_times):
+    '''Fit transit time data with the STaSI algorithm.
+
+    Args:
+        transit_times: list of tuples (datetime, timedelta) describing
+                       transit time vs datetime
+
+    Returns:
+        result (pandas.df): dataframe of results, containing
+                            mean transit times, sdevs, and their
+                            start and stop datetimes.
+    '''
+    transit_times = np.array(transit_times)
+    to_seconds_vectorized = np.vectorize(lambda x: x.total_seconds())
+    transit_times[:, 1] = to_seconds_vectorized(transit_times[:, 1])
+
+    # remove outliers 10 sigma beyond mean:
+    w1s = w1(transit_times[:, 1])
+    sigma = sdevFromW1(w1s)
+
+    transit_times[
+        np.abs(transit_times[:, 1] - np.mean(transit_times[:, 1]))
+        < 10 * sigma]
+
+    # if the time series is zero, return None
+    if len(transit_times) == 0:
+        return None
+
+    fit, means, results, MDLs = fitSTaSIModel(transit_times[:, 1])
+
+    # currently the results dataframe contains indices;
+    # make those into time stamps.
+    start_stamps = np.asarray(transit_times[:, 0])[results['start'].values]
+    stop_stamps = np.asarray(transit_times[:, 0])[results['stop'].values]
+    results['seg_start_datetime'] = start_stamps
+    results['seg_end_datetime'] = stop_stamps
+    results = results.drop('start', axis=1)
+    results = results.drop('stop', axis=1)
+
+    return results
+
+
+def populate_database_with_fit_results(session, results, origin_id,
+                                       destination_id, line_id, direction,
+                                       fit_start_datetime, fit_end_datetime):
+    '''Save the results of our MeanTransitTimes fit in the database
+
+    Args:
+        session: sqlalchemy session to our database
+        results (pd.DataFrame): pandas dataframe of fit results
+        origin_id: ID of the origin station
+        destination_id: ID of the destination station
+        line_id: ID of the subway line (e.g. '2')
+        direction: north ('N') or south ('S')
+        fit_start_datetime: first time point in the fitted data
+        fit_end_datetime: last time point in the fitted data
+    '''
+    newfit = Transit_time_fit(
+        origin_id, destination_id, line_id, direction,
+        fit_start_datetime, fit_end_datetime
+    )
+    session.add(newfit)
+    session.commit()
+    results['fit_id'] = newfit.id
+    results.to_sql('Mean_transit_time', session.connection(),
+                   if_exists='append', index=False)
+    session.commit()

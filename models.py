@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, BigInteger
 from sqlalchemy.types import DateTime, Boolean, Time, Date, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -55,6 +55,10 @@ class Trip_update(Base):
     stop_time_updates = relationship('Stop_time_update',
                                      order_by='Stop_time_update.id',
                                      back_populates='trip_update')
+
+    alerts = relationship('Alert_message',
+                          order_by='desc(Alert_message.id)',
+                          back_populates='trip_update')
 
     def __init__(self, trip_id, train_unique_num, origin_date,
                  origin_time, line_id,
@@ -121,9 +125,24 @@ class Stop(Base):
     parent_station = Column(String, nullable=True)
 
     trains_stopped_here = relationship(
-                              'Trains_stopped',
-                              order_by='desc(Trains_stopped.id)',
-                              back_populates='stop')
+        'Trains_stopped',
+        order_by='desc(Trains_stopped.id)',
+        back_populates='stop'
+    )
+
+    transit_times_from_here = relationship(
+        'Transit_time_fit',
+        order_by='desc(Transit_time_fit.id)',
+        back_populates='stop_origin',
+        foreign_keys=lambda: Transit_time_fit.stop_id_origin
+    )
+
+    transit_times_to_here = relationship(
+        'Transit_time_fit',
+        order_by='desc(Transit_time_fit.id)',
+        back_populates='stop_destination',
+        foreign_keys=lambda: Transit_time_fit.stop_id_destination
+    )
 
     def __init__(self, stop_id, name, stop_code=None,
                  desc=None, stop_lat=None, stop_lon=None,
@@ -174,3 +193,86 @@ class Trains_stopped(Base):
     def __repr__(self):
         return f'{self.train_unique_num}'\
             f' stopped at {self.stop_id} at {self.stop_time}'
+
+
+class Transit_time_fit(Base):
+    __tablename__ = 'Transit_time_fit'
+
+    id = Column(Integer, primary_key=True)
+    stop_id_origin = Column(String,
+                            ForeignKey('Stop.id'),
+                            nullable=False)
+    stop_id_destination = Column(String, ForeignKey('Stop.id'),
+                                 nullable=False)
+    line_id = Column(String, nullable=False)
+    direction = Column(String, nullable=False)
+    fit_start_datetime = Column(DateTime, nullable=False)
+    fit_end_datetime = Column(DateTime, nullable=False)
+
+    stop_origin = relationship(
+        'Stop',
+        back_populates='transit_times_from_here',
+        foreign_keys=[stop_id_origin]
+    )
+
+    stop_destination = relationship(
+        'Stop',
+        back_populates='transit_times_to_here',
+        foreign_keys=[stop_id_destination]
+    )
+
+    means = relationship(
+        'Mean_transit_time',
+        order_by='desc(Mean_transit_time.id)',
+        back_populates='fit'
+    )
+
+    def __init__(self, stop_id_origin, stop_id_destination,
+                 line_id, direction, fit_start_datetime, fit_end_datetime):
+        self.stop_id_origin = stop_id_origin
+        self.stop_id_destination = stop_id_destination
+        self.line_id = line_id
+        self.direction = direction
+        self.fit_start_datetime = fit_start_datetime
+        self.fit_end_datetime = fit_end_datetime
+
+
+class Mean_transit_time(Base):
+    __tablename__ = 'Mean_transit_time'
+
+    id = Column(Integer, primary_key=True)
+    fit_id = Column(Integer, ForeignKey('Transit_time_fit.id'),
+                    nullable=False)
+    seg_start_datetime = Column(DateTime, nullable=False)
+    seg_end_datetime = Column(DateTime, nullable=False)
+    mean = Column(Integer, nullable=False)
+    state = Column(Integer, nullable=False)
+
+    fit = relationship('Transit_time_fit',
+                       back_populates='means')
+
+    def __init__(self, fit_id, seg_start_datetime, seg_end_datetime,
+                 mean, state):
+        self.fit_id = fit_id
+        self.seg_start_datetime = seg_start_datetime
+        self.seg_end_datetime = seg_end_datetime
+        self.mean = mean
+        self.state = state
+
+
+class Alert_message(Base):
+    __tablename__ = 'Alert_message'
+
+    id = Column(Integer, primary_key=True)
+    trip_id = Column(String, ForeignKey('Trip_update.id'),
+                     nullable=False)
+    header = Column(String, nullable=False)
+    effective_timestamp = Column(DateTime, nullable=False)
+
+    trip_update = relationship('Trip_update',
+                               back_populates='alerts')
+
+    def __init__(self, trip_id, header, effective_timestamp):
+        self.trip_id = trip_id
+        self.header = header
+        self.effective_timestamp = effective_timestamp

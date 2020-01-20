@@ -7,11 +7,13 @@ import mtatracking_v2.nyct_subway_pb2 as nyct_subway_pb2
 
 from pytz import timezone
 
-from mtatracking_v2.models import Train,\
-                                  Stop,\
-                                  Stop_time_update,\
-                                  Trains_stopped,\
-                                  Trip_update
+from mtatracking_v2.models import (Train,
+                                   Stop,
+                                   Stop_time_update,
+                                   Trains_stopped,
+                                   Trip_update,
+                                   Alert_message
+                                   )
 
 
 class SubwaySystem_no_StopTimeUpdates:
@@ -90,10 +92,9 @@ class SubwaySystem_no_StopTimeUpdates:
                     #                             leftover_train_uniques)
                     pass
                 if len(FeedEntity.alert.header_text.translation) > 0:
-                    # alert message
-                    # leftover_train_uniques = self\
-                    #     ._processAlertMessage(FeedEntity, current_time,
-                    #                           leftover_train_uniques)
+                    # entity type alert message
+                    leftover_train_uniques = self\
+                        ._processAlertMessage(FeedEntity, current_time)
                     pass
         # any leftover trains have stopped at their last known stations
         # register their arrival, set their 'is_in_system_now=False'
@@ -272,6 +273,11 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         self.trip_update_dict = {}
         self.stop_time_update_dict = {}
         self.trains_stopped_dict = {}
+        self.alerts_list = []
+
+        # dict of trip origin dates.
+        # keys are trip_id from GTFS, NOT our keys in the DB.
+        self.trip_origin_date_dict = {}
 
         # increment this every time we want to add a
         # stoptimeupdate and use it as primary key
@@ -309,7 +315,8 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         objs = list(self.trains_dict.values())\
             + list(self.trip_update_dict.values())\
             + list(self.stop_time_update_dict.values())\
-            + list(self.trains_stopped_dict.values())
+            + list(self.trains_stopped_dict.values())\
+            + self.alerts_list
         self.session.bulk_save_objects(objs)
         self.session.commit()
 
@@ -337,37 +344,36 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
 
         for message in data:
             current_time = message.header.timestamp
+            # make DateTime object from current_time
+            current_time_dt = ddatetime.fromtimestamp(current_time)
+            current_time_dt = timezone('US/Eastern').localize(current_time_dt)
+
             for FeedEntity in message.entity:
                 if len(FeedEntity.trip_update.trip.trip_id) > 0:
                     # entity type "trip_update"
                     leftover_train_uniques = self._processTripUpdate(
                                             FeedEntity,
-                                            current_time,
+                                            current_time_dt,
                                             leftover_train_uniques)
                 if len(FeedEntity.vehicle.trip.trip_id) > 0:
                     # entity type "vehicle"
                     # leftover_train_uniques = self\
-                    #     ._processVehicleMessage(FeedEntity, current_time,
+                    #     ._processVehicleMessage(FeedEntity, current_time_dt,
                     #                             leftover_train_uniques)
                     pass
                 if len(FeedEntity.alert.header_text.translation) > 0:
                     # alert message
-                    # leftover_train_uniques = self\
-                    #     ._processAlertMessage(FeedEntity, current_time,
-                    #                           leftover_train_uniques)
-                    pass
+                    self._processAlertMessage(FeedEntity, current_time_dt)
+
         # any leftover trains have stopped at their last known stations
         # register their arrival, set their 'is_in_system_now=False'
-        self._performCleanup(current_time, leftover_train_uniques)
+        self._performCleanup(current_time_dt, leftover_train_uniques)
 
-    def _performCleanup(self, current_time, leftover_train_uniques):
+    def _performCleanup(self, current_time_dt, leftover_train_uniques):
         """Set the is_in_system_now attribute of the leftover trains to False.
         Register the arrival of these trains at their last known stations.
         """
         if leftover_train_uniques:
-            # make DateTime object from current_time
-            current_time_dt = ddatetime.fromtimestamp(current_time)
-            current_time_dt = timezone('US/Eastern').localize(current_time_dt)
 
             # print('performing clean up on the following trains: '
             #      + ' '.join(list(leftover_train_uniques)))
@@ -379,13 +385,15 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                 this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                     stopped_at,
                                                     train.unique_num,
-                                                    current_time_dt)
+                                                    current_time_dt,
+                                                    delayed=False,
+                                                    delayed_MTA=False)
                 self.trains_stopped_dict[
                     self.trainsstopped_counter] = this_train_stopped
                 self.trainsstopped_counter += 1
                 self.curr_trains_arr_st_dict.pop(train.unique_num)
 
-    def _processTripUpdate(self, FeedEntity, current_time,
+    def _processTripUpdate(self, FeedEntity, current_time_dt,
                            leftover_train_uniques):
         """Add data contained in the Protobuffer's Trip Update FeedEntity
         to the subway system.
@@ -397,9 +405,6 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                                             trains that had been in the system
                                             before we processed messages.
         """
-        # make DateTime object from current_time
-        current_time_dt = ddatetime.fromtimestamp(current_time)
-        current_time_dt = timezone('US/Eastern').localize(current_time_dt)
 
         # Add current train to dict
         train_id = FeedEntity.trip_update.trip\
@@ -424,6 +429,8 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
 
         # Add current trip to dict
         trip_id = FeedEntity.trip_update.trip.trip_id
+        # We need this later for alert messages:
+        self.trip_origin_date_dict[trip_id] = origin_date
         origin_time, _, direction, path_id = self.parse_trip_id(trip_id)
         # origin time to Time object:
         origin_time = (datetime.datetime.min +
@@ -471,7 +478,9 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                 stopped_at,
                                                 this_train.unique_num,
-                                                current_time_dt)
+                                                current_time_dt,
+                                                delayed=False,
+                                                delayed_MTA=False)
             if stopped_at not in self.stop_ids:
                 this_stop = Stop(stopped_at, 'Unknown')
                 self.stops_dict[stopped_at] = this_stop
@@ -481,6 +490,34 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             self.trainsstopped_counter += 1
 
         return leftover_train_uniques
+
+    def _processAlertMessage(self, FeedEntity, current_time_dt):
+        '''process any alert messages in the feed. These are always delay messages
+        and should always refer to a delayed train.
+
+        Args:
+            FeedEntity: AlertMessage FeedEntity (from protobuffer).
+            current_time (timestamp): timestamp in seconds since 1970
+        '''
+        # sometimes there are alert messages without reference to trains.
+        # We can't really use those so we will for now ignore them.
+        if len(FeedEntity.alert.informed_entity) > 0:
+            for tr in FeedEntity.alert.informed_entity:
+                # we need to construct the DB ID of the trip update that this
+                # alert message belongs to.
+                tr_id = tr.trip.trip_id
+                train_id = tr.trip.Extensions[
+                    nyct_subway_pb2.nyct_trip_descriptor].train_id
+                origin_date = self.trip_origin_date_dict[tr_id]
+                unique_num = origin_date.strftime('%Y%m%d') + ": " + train_id
+                # tr_id is ID in GTFS; trip_id is ID in DB:
+                trip_id = unique_num + ": " + tr_id
+                if len(FeedEntity.alert.header_text.translation) > 0:
+                    for h in FeedEntity.alert.header_text.translation:
+                        header = h.text
+                        thisalert = Alert_message(
+                            trip_id, header, current_time_dt)
+                        self.alerts_list.append(thisalert)
 
     def direction_to_str(self, direction):
         """convert a direction number (1, 2, 3, 4) to a string (N, E, S, W)
