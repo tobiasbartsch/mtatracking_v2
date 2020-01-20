@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, BigInteger
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.types import DateTime, Boolean, Time, Date, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -94,6 +94,10 @@ class Train(Base):
                               order_by='desc(Trains_stopped.id)',
                               back_populates='train')
 
+    vehicle_messages = relationship('Vehicle_message',
+                                    order_by='desc(Vehicle_message.id)',
+                                    back_populates='train')
+
     def __init__(self, unique_num, route_id,
                  first_seen_timestamp, is_in_system_now,
                  is_assigned=None, next_station=None,
@@ -142,6 +146,12 @@ class Stop(Base):
         order_by='desc(Transit_time_fit.id)',
         back_populates='stop_destination',
         foreign_keys=lambda: Transit_time_fit.stop_id_destination
+    )
+
+    vehicle_messages = relationship(
+        'Vehicle_message',
+        order_by='desc(Vehicle_message.id)',
+        back_populates='stop'
     )
 
     def __init__(self, stop_id, name, stop_code=None,
@@ -276,3 +286,30 @@ class Alert_message(Base):
         self.trip_id = trip_id
         self.header = header
         self.effective_timestamp = effective_timestamp
+
+
+class Vehicle_message(Base):
+    __tablename__ = 'Vehicle_message'
+
+    id = Column(Integer, primary_key=True)
+
+    train_unique_num = Column(String, ForeignKey('Train.unique_num'),
+                              nullable=False)
+    effective_timestamp = Column(DateTime, nullable=False)
+    current_status = Column(String, nullable=True)
+    stop_id = Column(String, ForeignKey('Stop.id'), nullable=True)
+    last_moved_at = Column(DateTime, nullable=True)
+    current_stop_sequence = Column(Integer, nullable=True)
+
+    train = relationship('Train',
+                         back_populates='vehicle_messages')
+    stop = relationship('Stop',
+                        back_populates='vehicle_messages')
+
+    def __init__(self, train_unique_num, current_status, stop_id,
+                 last_moved_at, current_stop_sequence):
+        self.train_unique_num = train_unique_num
+        self.current_status = current_status
+        self.stop_id = stop_id
+        self.last_moved_at = last_moved_at
+        self.current_stop_sequence = current_stop_sequence
