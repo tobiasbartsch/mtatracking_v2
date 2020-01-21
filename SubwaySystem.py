@@ -12,7 +12,8 @@ from mtatracking_v2.models import (Train,
                                    Stop_time_update,
                                    Trains_stopped,
                                    Trip_update,
-                                   Alert_message
+                                   Alert_message,
+                                   Vehicle_message
                                    )
 
 
@@ -274,6 +275,7 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         self.stop_time_update_dict = {}
         self.trains_stopped_dict = {}
         self.alerts_list = []
+        self.vmessage_list = []
 
         # dict of trip origin dates.
         # keys are trip_id from GTFS, NOT our keys in the DB.
@@ -290,9 +292,16 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         # BULK UPDATE DATABASE
         # first deal with any stops we still may need to add.
         dbstop_list = [stop.id for stop in self.session.query(Stop).all()]
-        new_stops = set(list(self.stops_dict.keys())) - set(dbstop_list)
+        vehicle_msg_stops = [
+            m.stop_id for m in self.vmessage_list if m.stop_id is not None]
+        new_stops = set(list(
+            self.stops_dict.keys())+vehicle_msg_stops) - set(dbstop_list)
         for stop in new_stops:
-            self.session.add(self.stops_dict[stop])
+            if stop in self.stops_dict.keys():
+                self.session.add(self.stops_dict[stop])
+            else:
+                unknown_new_stop = Stop(stop, 'Unknown')
+                self.session.add(unknown_new_stop)
         self.session.commit()
 
         # now perform bulk update of everything at once. I wonder whether I
@@ -316,7 +325,8 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             + list(self.trip_update_dict.values())\
             + list(self.stop_time_update_dict.values())\
             + list(self.trains_stopped_dict.values())\
-            + self.alerts_list
+            + self.alerts_list\
+            + self.vmessage_list
         self.session.bulk_save_objects(objs)
         self.session.commit()
 
@@ -357,10 +367,7 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                                             leftover_train_uniques)
                 if len(FeedEntity.vehicle.trip.trip_id) > 0:
                     # entity type "vehicle"
-                    # leftover_train_uniques = self\
-                    #     ._processVehicleMessage(FeedEntity, current_time_dt,
-                    #                             leftover_train_uniques)
-                    pass
+                    self._processVehicleMessage(FeedEntity, current_time_dt)
                 if len(FeedEntity.alert.header_text.translation) > 0:
                     # alert message
                     self._processAlertMessage(FeedEntity, current_time_dt)
@@ -508,16 +515,45 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                 tr_id = tr.trip.trip_id
                 train_id = tr.trip.Extensions[
                     nyct_subway_pb2.nyct_trip_descriptor].train_id
-                origin_date = self.trip_origin_date_dict[tr_id]
+                if tr_id in self.trip_origin_date_dict.keys():
+                    origin_date = self.trip_origin_date_dict[tr_id]
+                else:
+                    # fallback to hoping that the current date is right
+                    origin_date = current_time_dt
                 unique_num = origin_date.strftime('%Y%m%d') + ": " + train_id
                 # tr_id is ID in GTFS; trip_id is ID in DB:
                 trip_id = unique_num + ": " + tr_id
-                if len(FeedEntity.alert.header_text.translation) > 0:
-                    for h in FeedEntity.alert.header_text.translation:
-                        header = h.text
-                        thisalert = Alert_message(
-                            trip_id, header, current_time_dt)
-                        self.alerts_list.append(thisalert)
+                if trip_id in self.trip_update_dict.keys():
+                    if len(FeedEntity.alert.header_text.translation) > 0:
+                        for h in FeedEntity.alert.header_text.translation:
+                            header = h.text
+                            thisalert = Alert_message(
+                                trip_id, header, current_time_dt)
+                            self.alerts_list.append(thisalert)
+                else:
+                    print('warning: alert message refers '
+                          'to non-existent trip update')
+
+    def _processVehicleMessage(self, FeedEntity, current_time_dt):
+        train_id = FeedEntity.vehicle.trip.Extensions[
+            nyct_subway_pb2.nyct_trip_descriptor].train_id
+        origin_date = FeedEntity.vehicle.trip.start_date
+        unique_num = origin_date + ": " + train_id
+        current_status = FeedEntity.vehicle.current_status
+        stop_id = FeedEntity.vehicle.stop_id
+        if stop_id == '':
+            stop_id = None
+        last_moved_at = FeedEntity.vehicle.timestamp
+        last_moved_at = ddatetime.fromtimestamp(last_moved_at)
+        last_moved_at = timezone('US/Eastern').localize(last_moved_at)
+
+        current_stop_sequence = FeedEntity.vehicle.current_stop_sequence
+        effective_timestamp = current_time_dt
+        vmessage = Vehicle_message(unique_num, current_status,
+                                   stop_id, last_moved_at,
+                                   current_stop_sequence,
+                                   effective_timestamp)
+        self.vmessage_list.append(vmessage)
 
     def direction_to_str(self, direction):
         """convert a direction number (1, 2, 3, 4) to a string (N, E, S, W)

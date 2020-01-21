@@ -307,9 +307,10 @@ class Vehicle_message(Base):
                         back_populates='vehicle_messages')
 
     def __init__(self, train_unique_num, current_status, stop_id,
-                 last_moved_at, current_stop_sequence):
+                 last_moved_at, current_stop_sequence, effective_timestamp):
         self.train_unique_num = train_unique_num
         self.current_status = current_status
         self.stop_id = stop_id
         self.last_moved_at = last_moved_at
         self.current_stop_sequence = current_stop_sequence
+        self.effective_timestamp = effective_timestamp
