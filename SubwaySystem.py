@@ -241,8 +241,6 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
     THIS OBJECT CONTAINS HELPER FUNCTIONS TO LOAD HISTORICAL DATA IN BULK.
     WE WILL TRY TO AVOID PERFORMING ANY ORM OPERATIONS UNTIL ALL TRAINS,
     STOPS, ETC ARE IN MEMORY.
-
-    WE ASSUME THAT WE ARE STARTING WITH AN EMPTY DATABASE (EXCEPT FOR STOPS)
     """
 
     def __init__(self, session):
@@ -313,8 +311,12 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         dbstop_list = [stop.id for stop in self.session.query(Stop).all()]
         vehicle_msg_stops = [
             m.stop_id for m in self.vmessage_list if m.stop_id is not None]
+        trains_stopped_stops = [
+            t.stop_id for t in self.trains_stopped_dict.values()
+            if t.stop_id is not None]
         new_stops = set(list(
-            self.stops_dict.keys())+vehicle_msg_stops) - set(dbstop_list)
+            self.stops_dict.keys()) + vehicle_msg_stops +
+                trains_stopped_stops) - set(dbstop_list)
         for stop in new_stops:
             if stop in self.stops_dict.keys():
                 self.session.add(self.stops_dict[stop])
