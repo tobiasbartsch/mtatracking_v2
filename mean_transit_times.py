@@ -26,7 +26,7 @@ def getTransitTimes(origin_id, dest_id, line_id,
 
     sqltext = get_data('mtatracking_v2', 'sql_queries/transit_times.sql')
     transit_times = session.execute(
-        sqltext.decode("utf-8").format(origin_id, dest_id,
+        sqltext.decode("utf-8").format(origin_id, dest_id, line_id,
                                        time_start, time_end)
         ).fetchall()
     return transit_times
