@@ -2,7 +2,7 @@ import numpy as np
 import datetime
 from datetime import datetime as ddatetime
 from datetime import timedelta
-
+from sqlalchemy import desc
 import mtatracking_v2.nyct_subway_pb2 as nyct_subway_pb2
 
 from pytz import timezone
@@ -266,11 +266,18 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         # whether a train stopped at a station without querying the
         # database
 
-        # keys: uniquenums, vals: arr stations
-        self.curr_trains_arr_st_dict = {}
+        curr_trains = session.query(Train).filter(
+            Train.is_in_system_now == True).all()
+        if curr_trains:
+            self.curr_trains_arr_st_dict = {t.unique_num: t.next_station
+                                            for t in curr_trains}
+            self.trains_dict = {t.unique_num: t for t in curr_trains}
+        else:
+            # keys: uniquenums, vals: arr stations
+            self.curr_trains_arr_st_dict = {}
+            # keys: primary_keys, vals: ORM objects
+            self.trains_dict = {}
 
-        # keys: primary_keys, vals: ORM objects
-        self.trains_dict = {}
         self.trip_update_dict = {}
         self.stop_time_update_dict = {}
         self.trains_stopped_dict = {}
@@ -283,10 +290,22 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
 
         # increment this every time we want to add a
         # stoptimeupdate and use it as primary key
-        self.stoptimeupdate_counter = 1
+        stoptimeupdate_last = session.query(
+            Stop_time_update).order_by(
+                desc(Stop_time_update.id)).limit(1).one_or_none()
+        if stoptimeupdate_last:
+            self.stoptimeupdate_counter = stoptimeupdate_last.id + 1
+        else:
+            self.stoptimeupdate_counter = 1
         # increment this every time we want to add a
         # Trains_stopped and use it as primary key
-        self.trainsstopped_counter = 1
+        trainsstopped_last = session.query(
+            Trains_stopped).order_by(desc(
+                Trains_stopped.id)).limit(1).one_or_none()
+        if trainsstopped_last:
+            self.trainsstopped_counter = trainsstopped_last.id + 1
+        else:
+            self.trainsstopped_counter = 1
 
     def performBulkUpdate(self):
         # BULK UPDATE DATABASE
