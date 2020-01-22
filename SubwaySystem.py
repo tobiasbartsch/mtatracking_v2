@@ -427,12 +427,17 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         else:
             next_station = 'Unknown'
 
-        this_train = Train(unique_num=unique_num, route_id=route_id,
-                           first_seen_timestamp=current_time_dt,
-                           is_in_system_now=True,
-                           is_assigned=is_assigned, next_station=next_station)
-
-        self.trains_dict[unique_num] = this_train
+        if unique_num not in self.trains_dict.keys():
+            this_train = Train(unique_num=unique_num, route_id=route_id,
+                               first_seen_timestamp=current_time_dt,
+                               is_in_system_now=True,
+                               is_assigned=is_assigned,
+                               next_station=next_station)
+            self.trains_dict[unique_num] = this_train
+        else:
+            self.trains_dict[unique_num].is_assigned = is_assigned
+            self.trains_dict[unique_num].next_station = next_station
+            this_train = self.trains_dict[unique_num]
 
         # Add current trip to dict
         trip_id = FeedEntity.trip_update.trip.trip_id
@@ -471,8 +476,12 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                 # curr_trains_arr_st_dict[this_train.unique_num]
                 stopped_at = self.curr_trains_arr_st_dict[
                     this_train.unique_num]
-                if(this_train.unique_num == '20190630: 02 2342+ 241/FLA'):
-                    print(stopped_at)
+                if(this_train.unique_num == '20190707: 1Q 2010+ STL/962'):
+                    # print(this_train)
+                    # print(FeedEntity.trip_update.stop_time_update[0])
+                    print("************")
+                    print('stopped at: ', stopped_at)
+                    print('next station: ', next_station)
                 # set new arrival station for our train:
                 self.curr_trains_arr_st_dict[
                     this_train.unique_num] = next_station
