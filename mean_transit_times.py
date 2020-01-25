@@ -46,26 +46,26 @@ def computeMeanTransitTimes(transit_times):
     '''
     transit_times = np.array(transit_times)
     to_seconds_vectorized = np.vectorize(lambda x: x.total_seconds())
-    transit_times[:, 1] = to_seconds_vectorized(transit_times[:, 1])
-
-    # remove outliers 10 sigma beyond mean:
-    w1s = w1(transit_times[:, 1])
+    transit_times_s = transit_times.copy()
+    transit_times_s[:, 1] = to_seconds_vectorized(transit_times[:, 1])
+    # remove outliers 10 sigma beyond mean. Remove negative times:
+    w1s = w1(transit_times_s[:, 1])
     sigma = sdevFromW1(w1s)
 
-    transit_times[
-        np.abs(transit_times[:, 1] - np.mean(transit_times[:, 1]))
-        < 10 * sigma]
-
+    transit_times_filtered = transit_times_s[(
+        np.abs((transit_times_s[:, 1]) - np.median(
+            (transit_times_s[:, 1]))) < 10 * sigma)
+        & (transit_times_s[:, 1] > 0)]
     # if the time series is zero, return None
-    if len(transit_times) == 0:
+    if len(transit_times_filtered) == 0:
         return None
 
-    fit, means, results, MDLs = fitSTaSIModel(transit_times[:, 1])
+    fit, means, results, MDLs = fitSTaSIModel(transit_times_filtered[:, 1])
 
     # currently the results dataframe contains indices;
     # make those into time stamps.
-    start_stamps = np.asarray(transit_times[:, 0])[results['start'].values]
-    stop_stamps = np.asarray(transit_times[:, 0])[results['stop'].values]
+    start_stamps = np.asarray(transit_times_filtered[:, 0])[results['start'].values]
+    stop_stamps = np.asarray(transit_times_filtered[:, 0])[results['stop'].values]
     results['seg_start_datetime'] = start_stamps
     results['seg_end_datetime'] = stop_stamps
     results = results.drop('start', axis=1)
