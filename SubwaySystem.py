@@ -254,40 +254,12 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         # long gaps in between files during tracking:
         self.last_attached_file_timestamp = np.nan
 
-        # keep the Stops table in memory so that we can check whether
-        # a stop is in the database without performing a query:
-        self.stop_ids = [s.id for s in session.query(Stop).all()]
-        self.stops_dict = {s.id: s for s in session.query(Stop).all()}
+        self.resetSystem(session)
 
-        # keep a dictionary of trains currently in the system
-        # (and their arr stations). This will allow us to determine
-        # whether a train stopped at a station without querying the
-        # database
-
-        curr_trains = session.query(Train).filter(
-            Train.is_in_system_now == True).all()
-        if curr_trains:
-            self.curr_trains_arr_st_dict = {t.unique_num: t.next_station
-                                            for t in curr_trains}
-            self.trains_dict = {t.unique_num: t for t in curr_trains}
-        else:
-            # keys: uniquenums, vals: arr stations
-            self.curr_trains_arr_st_dict = {}
-            # keys: primary_keys, vals: ORM objects
-            self.trains_dict = {}
-
-        self.trip_update_dict = {}
-        self.stop_time_update_dict = {}
-        self.trains_stopped_dict = {}
-        self.alerts_list = []
-        self.vmessage_list = []
-
-        # dict of trip origin dates.
-        # keys are trip_id from GTFS, NOT our keys in the DB.
-        self.trip_origin_date_dict = {}
-
+    def setStartingPrimaryKeys(self):
         # increment this every time we want to add a
         # stoptimeupdate and use it as primary key
+        session = self.session
         stoptimeupdate_last = session.query(
             Stop_time_update).order_by(
                 desc(Stop_time_update.id)).limit(1).one_or_none()
@@ -350,6 +322,43 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             + self.vmessage_list
         self.session.bulk_save_objects(objs)
         self.session.commit()
+
+        self.resetSystem(self.session)
+
+    def resetSystem(self, session):
+        # keep the Stops table in memory so that we can check whether
+        # a stop is in the database without performing a query:
+        self.stop_ids = [s.id for s in session.query(Stop).all()]
+        self.stops_dict = {s.id: s for s in session.query(Stop).all()}
+
+        # keep a dictionary of trains currently in the system
+        # (and their arr stations). This will allow us to determine
+        # whether a train stopped at a station without querying the
+        # database
+
+        curr_trains = session.query(Train).filter(
+            Train.is_in_system_now == True).all()
+        if curr_trains:
+            self.curr_trains_arr_st_dict = {t.unique_num: t.next_station
+                                            for t in curr_trains}
+            self.trains_dict = {t.unique_num: t for t in curr_trains}
+        else:
+            # keys: uniquenums, vals: arr stations
+            self.curr_trains_arr_st_dict = {}
+            # keys: primary_keys, vals: ORM objects
+            self.trains_dict = {}
+
+        self.trip_update_dict = {}
+        self.stop_time_update_dict = {}
+        self.trains_stopped_dict = {}
+        self.alerts_list = []
+        self.vmessage_list = []
+
+        # dict of trip origin dates.
+        # keys are trip_id from GTFS, NOT our keys in the DB.
+        self.trip_origin_date_dict = {}
+
+        self.setStartingPrimaryKeys()
 
     def attach_tracking_data(self, data):
         """Process the protocol buffer feed and populate our
