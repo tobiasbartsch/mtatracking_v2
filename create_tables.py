@@ -1,4 +1,4 @@
-
+import sys
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -7,8 +7,11 @@ from models import Base, Stop
 # import sys
 # sys.path.append('/home/tbartsch/source/repos')
 
+print("Enter database name: ")
+name = sys.stdin.readline()
 
-engine = create_engine('postgresql://tbartsch:test@localhost/mtatrackingv2')
+
+engine = create_engine(f'postgresql://tbartsch:test@localhost/{name}')
 
 Base.metadata.create_all(engine)
 
