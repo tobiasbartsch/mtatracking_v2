@@ -20,13 +20,14 @@ class Stop_time_update(Base):
     departure_time = Column(DateTime, nullable=True)
     scheduled_track = Column(String, nullable=True)
     actual_track = Column(String, nullable=True)
+    effective_timestamp = Column(DateTime, nullable=True)
 
     trip_update = relationship('Trip_update',
                                back_populates='stop_time_updates')
 
     def __init__(self, id, trip_update_id, stop_id, arrival_time=None,
                  departure_time=None, scheduled_track=None,
-                 actual_track=None):
+                 actual_track=None, effective_timestamp=None):
         self.id = id
         self.trip_update_id = trip_update_id
         self.stop_id = stop_id
@@ -34,6 +35,7 @@ class Stop_time_update(Base):
         self.departure_time = departure_time
         self.scheduled_track = scheduled_track
         self.actual_track = actual_track
+        self.effective_timestamp = effective_timestamp
 
 
 class Trip_update(Base):
