@@ -950,6 +950,12 @@ class SubwaySystem:
                 else:
                     print('warning: alert message refers '
                           'to non-existent trip update')
+        else:
+            # This is a strange case: there is an alert message but it does
+            # not refer to any trip. There is nothing we can do with this,
+            # but print it to the command line so we can inspect it --
+            # maybe one day there will be something useful in here.
+            print(FeedEntity)
 
     def _processVehicleMessage(self, FeedEntity, current_time_dt):
         train_id = FeedEntity.vehicle.trip.Extensions[
