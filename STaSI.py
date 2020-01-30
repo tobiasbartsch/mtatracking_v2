@@ -29,6 +29,7 @@ def sdevFromW1(w1):
         sdev = sortedAbsW1[int(np.round(0.682*len(w1)))] / np.sqrt(2)
         return sdev
     else:
+        print('w1 empty!')
         return 0
 
 
@@ -47,10 +48,15 @@ def fitSTaSIModel(data):
     if len(data) == 0:
         return np.nan, np.nan, np.nan, np.nan
 
-    segindices = segmentizeData(data)
+    w1s = w1(data)
+    sigma = sdevFromW1(w1s)
+    if sigma == 0:
+        print("we can't fit this because we can't get a decent sdev")
+        return (None, None, None, None, None)
+    segindices = segmentizeData(data, sigma)
     states = makeStates(data, segindices)
-    means = getMeansOfStates(data, segindices, states)
-    fits = getFitFunctions(segindices, states, means)            
+    means, sdevs = getMeansOfStates(data, segindices, states)
+    fits = getFitFunctions(segindices, states, means)
     MDLs = MDL(data, fits, segindices, states)
     best_fit = np.argmin(MDLs)
 
@@ -58,9 +64,9 @@ def fitSTaSIModel(data):
     #print('**********************************************')
     #print('Found ' + str(numstates_best) + ' states')
     #print('Means: ' + str(means[best_fit]))
-    return fits[best_fit], means[best_fit], _segsAndMeans(segindices, states[best_fit], means[best_fit]), np.asarray(MDLs)
+    return fits[best_fit], means[best_fit], sdevs[best_fit], _segsAndMeans(segindices, states[best_fit], means[best_fit], sdevs[best_fit]), np.asarray(MDLs)
 
-def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_level):
+def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_level, sdevs_one_pooling_level):
     '''return a list of segments with start and end indices, their states, and their means
     
     Args:
@@ -69,6 +75,7 @@ def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_le
                                 For example, states=[1,1,1,2,2] assigns the first three segments to state 1 and the last 2 segments to state 2
                                 Numbering of states starts at 1 (not at zero!).
         means_one_pooling_level (np.array of float): mean value of the data in each one of the states. (for one level of pooling only; this is a 1D array)
+        sdevs_one_pooling_level (np.array of float): sdev value of the data in each one of the states. (for one level of pooling only; this is a 1D array)
     '''
     statediff = np.diff(np.asarray(states_one_pooling_level))
 
@@ -76,21 +83,28 @@ def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_le
     stops = []
     means = []
     states = []
+    sdevs = []
 
 
     for stop, state, diff in zip(segmentindices[1:-1], states_one_pooling_level[:-1], statediff):
-        if diff is not 0: #if diff is 0, then we want to ignore the current end index as we are remaining in the same state.
+        print('*****start******')
+        print(diff is not 0)
+        print(diff != 0)
+        print('**********')
+        if diff != 0: #if diff is 0, then we want to ignore the current end index as we are remaining in the same state.
             stops.append(stop)
             starts.append(stop) #the current stop is the beginning of the next segment
             states.append(state)
             means.append(means_one_pooling_level[state-1])
+            sdevs.append(sdevs_one_pooling_level[state-1])
 
     #now append info about the last segment
     stops.append(segmentindices[-1])
     states.append(states_one_pooling_level[-1])
     means.append(means_one_pooling_level[states[-1]-1])
+    sdevs.append(sdevs_one_pooling_level[states[-1]-1])
 
-    results = pd.DataFrame({'start': starts, 'stop': stops, 'mean': means, 'state': states})
+    results = pd.DataFrame({'start': starts, 'stop': stops, 'median': means, 'sdev': sdevs, 'state': states})
 
     return results
 
@@ -98,11 +112,12 @@ def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_le
 
 
 
-def segmentizeData(data):
+def segmentizeData(data, sigma=None):
     '''detect transition points and segmentize the data until termination conditions are met.
     
     Args:
         data (np.array): the time series
+        sigma: standard deviation of the data. If None we will calculate it independently for each segment from w1s (not recommended)
     Returns:
         segmentindices (np.array): array of end-of-segment indices.
     '''
@@ -122,7 +137,7 @@ def segmentizeData(data):
                     donenew.append(True)
                     #pass
                 else:
-                    tpnts = _findTransitionPoint(data[start:end])
+                    tpnts = _findTransitionPoint(data[start:end], sigma)
                     if tpnts is None:
                         #we are done with this segment
                         segnew.append(end)
@@ -178,16 +193,20 @@ def getMeansOfStates(data, segmentindices, pooled_states):
         pooled_states (list of list): each sublist in the list assigns segments to a state. later entries in the list feature progressively fewer states.
 
     Returns:
-        means (list of lists): each sublist corresponds to the means of the states for a different level of pooling
+        (means, sdevs) (tuple of list of lists): each sublist corresponds to the means of the states for a different level of pooling
     '''
     means = []
+    sdevs = []
     for i, states in enumerate(pooled_states):
         means_in_pool = []
+        sdevs_in_pool = []
         statedata = _concatenateStateData(data, states, segmentindices)
         for statenum, sdata in enumerate(statedata):
-            means_in_pool.append(np.mean(sdata))
+            means_in_pool.append(np.median(sdata)) #NOTE: median!!!!!
+            sdevs_in_pool.append(np.sqrt(np.median(sdata)+1)) #NOTE we are computing this as if it were poisson
         means.append(means_in_pool)
-    return means
+        sdevs.append(sdevs_in_pool)
+    return means, sdevs
 
 def getFitFunctions(segmentindices, pooled_states, means):
     '''generates plottable fit functions for each set of pooled states
@@ -359,17 +378,19 @@ def _merit(data_i, data_j):
 
 
 
-def _findTransitionPoint(data, threshold = 3.174):
+def _findTransitionPoint(data, sigma=None, threshold = 3.174):
     '''run t-tests checking for a transition point within the time series data
 
     Args:
         data (np.array): time series
+        sigma: standard deviation. If None this will be calculated using w1s.
         threshold (float): threshold for t-test value. If the highest t-Test value is larger than threshold, that point is identified as a transition point.
     Returns:
         transition_index (int): index of the transition point. None if none was found.
     '''
-    w1s = w1(data)
-    sigma = sdevFromW1(w1s)
+    if sigma is None:
+        w1s = w1(data)
+        sigma = sdevFromW1(w1s)
     Rs = np.copy(data)
     Rs.fill(0)
 

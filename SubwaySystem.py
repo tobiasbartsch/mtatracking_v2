@@ -16,6 +16,7 @@ from mtatracking_v2.models import (Train,
                                    Vehicle_message
                                    )
 
+
 class SubwaySystem_bulk_updater_noStopTimeUpdate:
     """A subway system consists of stations, lines, and trains.
     These objects are stored in a database and accessed by SQLAlchemy.

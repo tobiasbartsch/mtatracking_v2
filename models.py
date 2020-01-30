@@ -218,6 +218,7 @@ class Transit_time_fit(Base):
                                  nullable=False)
     line_id = Column(String, nullable=False)
     direction = Column(String, nullable=False)
+    sdev = Column(Integer, nullable=False)  # seconds!
     fit_start_datetime = Column(DateTime, nullable=False)
     fit_end_datetime = Column(DateTime, nullable=False)
 
@@ -233,18 +234,20 @@ class Transit_time_fit(Base):
         foreign_keys=[stop_id_destination]
     )
 
-    means = relationship(
+    medians = relationship(
         'Mean_transit_time',
         order_by='desc(Mean_transit_time.id)',
         back_populates='fit'
     )
 
     def __init__(self, stop_id_origin, stop_id_destination,
-                 line_id, direction, fit_start_datetime, fit_end_datetime):
+                 line_id, direction, sdev, fit_start_datetime,
+                 fit_end_datetime):
         self.stop_id_origin = stop_id_origin
         self.stop_id_destination = stop_id_destination
         self.line_id = line_id
         self.direction = direction
+        self.sdev = sdev
         self.fit_start_datetime = fit_start_datetime
         self.fit_end_datetime = fit_end_datetime
 
@@ -257,18 +260,23 @@ class Mean_transit_time(Base):
                     nullable=False)
     seg_start_datetime = Column(DateTime, nullable=False)
     seg_end_datetime = Column(DateTime, nullable=False)
-    mean = Column(Integer, nullable=False)
+
+    median = Column(Integer, nullable=False)  # seconds!
+
+    # currently this is calculated as if it were a poisson process
+    sdev = Column(Integer, nullable=False)
     state = Column(Integer, nullable=False)
 
     fit = relationship('Transit_time_fit',
-                       back_populates='means')
+                       back_populates='medians')
 
     def __init__(self, fit_id, seg_start_datetime, seg_end_datetime,
-                 mean, state):
+                 median, sdev, state):
         self.fit_id = fit_id
         self.seg_start_datetime = seg_start_datetime
         self.seg_end_datetime = seg_end_datetime
-        self.mean = mean
+        self.median = median
+        self.sdev = sdev
         self.state = state
 
 
