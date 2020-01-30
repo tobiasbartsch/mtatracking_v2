@@ -62,6 +62,10 @@ class Trip_update(Base):
                           order_by='desc(Alert_message.id)',
                           back_populates='trip_update')
 
+    trip_stopped_at = relationship('Trains_stopped',
+                                   order_by='desc(Trains_stopped.id)',
+                                   back_populates='trip_update')
+
     def __init__(self, trip_id, train_unique_num, origin_date,
                  origin_time, line_id,
                  direction, effective_timestamp, path=None):
@@ -186,20 +190,27 @@ class Trains_stopped(Base):
     train_unique_num = Column(String,
                               ForeignKey('Train.unique_num'),
                               nullable=False)
+    trip_update_id = Column(String,
+                            ForeignKey('Trip_update.id'),
+                            nullable=False)
     stop_time = Column(DateTime, nullable=False)
     delayed = Column(Boolean, nullable=False)
+    delayed_magnitude = Column(Float, nullable=True)
     delayed_MTA = Column(Boolean, nullable=False)
 
     train = relationship('Train', back_populates='stopped_at')
     stop = relationship('Stop', back_populates='trains_stopped_here')
+    trip_update = relationship('Trip_update', back_populates='trip_stopped_at')
 
-    def __init__(self, id, stop_id, train_unique_num, stop_time,
-                 delayed, delayed_MTA):
+    def __init__(self, id, stop_id, train_unique_num, trip_update_id,
+                 stop_time, delayed, delayed_magnitude, delayed_MTA):
         self.id = id
         self.stop_id = stop_id
         self.train_unique_num = train_unique_num
+        self.trip_update_id = trip_update_id
         self.stop_time = stop_time
         self.delayed = delayed
+        self.delayed_magnitude = delayed_magnitude
         self.delayed_MTA = delayed_MTA
 
     def __repr__(self):

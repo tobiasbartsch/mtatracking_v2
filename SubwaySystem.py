@@ -203,8 +203,10 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                 this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                     stopped_at,
                                                     train.unique_num,
+                                                    train.trip_updates[0].id,
                                                     current_time_dt,
                                                     delayed=False,
+                                                    delayed_magnitude=0,
                                                     delayed_MTA=False)
                 self.trains_stopped_dict[
                     self.trainsstopped_counter] = this_train_stopped
@@ -305,8 +307,10 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                 stopped_at,
                                                 this_train.unique_num,
+                                                trip_id,
                                                 current_time_dt,
                                                 delayed=False,
+                                                delayed_magnitude=0,
                                                 delayed_MTA=False)
             if stopped_at not in self.stop_ids:
                 this_stop = Stop(stopped_at, 'Unknown')
@@ -543,8 +547,10 @@ class SubwaySystem:
                 this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                     stopped_at,
                                                     train.unique_num,
+                                                    train.trip_updates[0].id,
                                                     current_time_dt,
                                                     delayed=False,
+                                                    delayed_magnitude=0,
                                                     delayed_MTA=False)
                 self.trainsstopped_counter += 1
                 self.session.add(this_train_stopped)
@@ -643,8 +649,10 @@ class SubwaySystem:
             this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                 stopped_at,
                                                 this_train.unique_num,
+                                                trip_id,
                                                 current_time_dt,
                                                 delayed=False,
+                                                delayed_magnitude=0,
                                                 delayed_MTA=False)
             if stopped_at not in self.stop_ids:
                 this_stop = Stop(stopped_at, 'Unknown')
