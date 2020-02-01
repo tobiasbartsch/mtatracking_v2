@@ -4,11 +4,8 @@ from datetime import datetime, timedelta
 from mtatracking_v2.models import (
     Train,
     Stop,
-    Stop_time_update,
     Trains_stopped,
     Trip_update,
-    Alert_message,
-    Vehicle_message,
     Transit_time_fit
 )
 from mtatracking_v2.mean_transit_times import (
@@ -17,7 +14,6 @@ from mtatracking_v2.mean_transit_times import (
     populate_database_with_fit_results
 )
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm.exc import MultipleResultsFound
 
 
 def getStationsAlongLine(line_id, direction, time_start, time_end, session):
@@ -106,7 +102,7 @@ def getStationIDsAlongLine_ordered(
                     (Trains_stopped.stop_id == stationid) & (
                         Trains_stopped.train_unique_num == train)).all()
             except NoResultFound as e:
-                print(e)
+                print('No data for this train in database', e)
             avg_departure_time += (
                 ts[-1].stop_time - datetime(1970, 1, 1)).total_seconds()
         avg_departure_times.append(avg_departure_time)
@@ -226,13 +222,10 @@ class historicTrainDelays():
                        which we call a train delayed.
         '''
         self.getHistoricMeansAndSdevs()
-        ttimes = None
-        dels = None
-        t= None
+
         for orig, dest in zip(train.stopped_at[::-1][:-1],
                               train.stopped_at[::-1][1:]):
             transit_time = dest.stop_time - orig.stop_time
-
             # compare to mean and sdev
             if (orig.stop_id, dest.stop_id) in self.meansAndSdev_fit_dict:
                 fit = self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)]
@@ -261,32 +254,14 @@ class historicTrainDelays():
                     median = mean_tt.median
                     sdev = mean_tt.sdev
             if median and sdev:
-                if dest.stop_id == 'D42N' and orig.stop_id == 'D43N':
-                    t = dest.stop_time
-                    ttimes = transit_time
-                    dels = dest.delayed
-                    print("**********************************")
-                    print('transit time: ', transit_time)
-                    print('median: ', median)
-                    print('sdev ', sdev)
-                    print('threshold: ', timedelta(seconds=(median + n*sdev)))
-                    print('delayed: ', transit_time > timedelta(seconds=(median + n*sdev)))
                 if transit_time > timedelta(seconds=(median + n*sdev)):
                     dest.delayed = True
                     self.session.commit()
                 else:
                     dest.delayed = False
                     self.session.commit()
-            else:
-                if dest.stop_id == 'D42N' and orig.stop_id == 'D43N':
-                    print('warning: could not find segment '
-                            'that matches timestamp', dest.stop_time)
-                    print('available segs: ')
-                    for mean_tt in fit.medians:
-                        print('start: ' + str(mean_tt.seg_start_datetime) + ", stop: " + str(mean_tt.seg_end_datetime))
 
         self.session.commit()
-        return (t, ttimes, dels)
 
     def checkAllTrainsInLine(self):
 
