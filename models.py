@@ -192,7 +192,7 @@ class Trains_stopped(Base):
                               nullable=False)
     trip_update_id = Column(String,
                             ForeignKey('Trip_update.id'),
-                            nullable=False)
+                            nullable=True)
     stop_time = Column(DateTime, nullable=False)
     delayed = Column(Boolean, nullable=False)
     delayed_magnitude = Column(Float, nullable=True)

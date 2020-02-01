@@ -36,7 +36,7 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
         # we need to make sure we do not have unreasonably
         # long gaps in between files during tracking:
         self.last_attached_file_timestamp = np.nan
-
+        self.last_trip_update_for_train_dict = {}
         self.resetSystem(session)
 
     def setStartingPrimaryKeys(self):
@@ -200,18 +200,25 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
             for train in leftover_trains:
                 train.is_in_system_now = False
                 stopped_at = self.curr_trains_arr_st_dict[train.unique_num]
-                this_train_stopped = Trains_stopped(self.trainsstopped_counter,
-                                                    stopped_at,
-                                                    train.unique_num,
-                                                    train.trip_updates[0].id,
-                                                    current_time_dt,
-                                                    delayed=False,
-                                                    delayed_magnitude=0,
-                                                    delayed_MTA=False)
+                if train.unique_num in self.last_trip_update_for_train_dict:
+                    tuid = self.last_trip_update_for_train_dict[
+                        train.unique_num]
+                else:
+                    tuid = None
+                this_train_stopped = Trains_stopped(
+                    self.trainsstopped_counter,
+                    stopped_at,
+                    train.unique_num,
+                    tuid,
+                    current_time_dt,
+                    delayed=False,
+                    delayed_magnitude=0,
+                    delayed_MTA=False
+                    )
                 self.trains_stopped_dict[
                     self.trainsstopped_counter] = this_train_stopped
                 self.trainsstopped_counter += 1
-                self.curr_trains_arr_st_dict.pop(train.unique_num)
+            self.curr_trains_arr_st_dict.pop(train.unique_num)
 
     def _processTripUpdate(self, FeedEntity, current_time_dt,
                            leftover_train_uniques):
@@ -274,7 +281,7 @@ class SubwaySystem_bulk_updater_noStopTimeUpdate:
                                 path=path_id)
 
         self.trip_update_dict[this_trip.id] = this_trip
-
+        self.last_trip_update_for_train_dict[unique_num] = unique_num + ": " + trip_id
         # determine whether our train has just stopped at a station:
         stopped_at = None
         if this_train.unique_num in self.curr_trains_arr_st_dict:
