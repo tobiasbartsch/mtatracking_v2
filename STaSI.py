@@ -61,9 +61,6 @@ def fitSTaSIModel(data):
     best_fit = np.argmin(MDLs)
 
     numstates_best = np.max(states[best_fit])
-    #print('**********************************************')
-    #print('Found ' + str(numstates_best) + ' states')
-    #print('Means: ' + str(means[best_fit]))
     return fits[best_fit], means[best_fit], sdevs[best_fit], _segsAndMeans(segindices, states[best_fit], means[best_fit], sdevs[best_fit]), np.asarray(MDLs)
 
 def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_level, sdevs_one_pooling_level):
@@ -87,10 +84,6 @@ def _segsAndMeans(segmentindices, states_one_pooling_level, means_one_pooling_le
 
 
     for stop, state, diff in zip(segmentindices[1:-1], states_one_pooling_level[:-1], statediff):
-        print('*****start******')
-        print(diff is not 0)
-        print(diff != 0)
-        print('**********')
         if diff != 0: #if diff is 0, then we want to ignore the current end index as we are remaining in the same state.
             stops.append(stop)
             starts.append(stop) #the current stop is the beginning of the next segment
