@@ -16,6 +16,14 @@ from mtatracking_v2.mean_transit_times import (
 from sqlalchemy.orm.exc import NoResultFound
 
 
+def getDistinctLines(session):
+    '''return set of distinct subway lines in system'''
+    lines = session.query(Trip_update.line_id).distinct()\
+        .order_by(Trip_update.line_id).all()
+    lines = [el[0] for el in lines]
+    return lines
+
+
 def getStationsAlongLine(line_id, direction, time_start, time_end, session):
     '''return a list of stations along a line.
     Compute this from historic subway system data
@@ -139,13 +147,10 @@ def getStationObjectsAlongLine_ordered(
     return sorted(stations, key=lambda x: station_ids.index(x.id))
 
 
-def findDelaysAndSetDelayedAttrib(
-                    line_id, direction, time_start, time_end, session):
-    '''find delayed trains in historic data and set their delayed attribute
+def findDelaysAndSetDelayedAttrib(time_start, time_end, session):
+    '''find delayed trains in historic data and set their delayed attribute.
+    Analyzes ALL lines, and both directions, so this can take a while
      Args:
-        line_id (string): id of the subway line, for example 'Q'
-        direction (string): direction. We currently only support 'N' or 'S'.
-                            This could change if the MTA changes their mind.
         time_start (datetime): timepoint in the historic data at which to
                                 start the computation
         time_end (datetime): timepoint in the historic data at which to
@@ -154,6 +159,14 @@ def findDelaysAndSetDelayedAttrib(
     This function modifies the train objects of line line_id (it updates their
     delayed attribute). Changes are committed back to the database.
     '''
+    directions = ['N', 'S']
+    lines = getDistinctLines(session)
+    for line in lines:
+        for direction in directions:
+            print('Working on ' + line + direction)
+            thisHTD = historicTrainDelays(
+                line, direction, time_start, time_end, session)
+            thisHTD.checkAllTrainsInLine(n=8)
 
 
 class historicTrainDelays():
@@ -260,10 +273,13 @@ class historicTrainDelays():
                 else:
                     dest.delayed = False
                     self.session.commit()
+                dest.delayed_magnitude = (
+                    transit_time - timedelta(seconds=median))\
+                    / timedelta(seconds=sdev)
 
         self.session.commit()
 
-    def checkAllTrainsInLine(self):
+    def checkAllTrainsInLine(self, n=8):
 
         for train in self.trains:
-            self.checkDelaysOfTrain(train, n=3)
+            self.checkDelaysOfTrain(train, n)
