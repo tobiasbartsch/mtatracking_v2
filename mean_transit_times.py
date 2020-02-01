@@ -74,16 +74,17 @@ def _removeShortStates(results, dt=timedelta(hours=4)):
     results['length'] =\
         results['seg_end_datetime'] - results['seg_start_datetime']
 
-    print('length res ', len(results))
     for i, row in results.iterrows():
         if row['length'] < dt:
-            print('i', i)
             # found a row we want to delete. Should we append this state
             # to the row before or after?
             if i == 0:
                 # have to use row after
                 results.loc[i+1, 'seg_start_datetime'] =\
                     row['seg_start_datetime']
+                # set the vals of the current row to be those of row after
+                results.loc[i, :] = results.loc[i+1, :]
+                results.loc[i, 'length'] = timedelta(seconds=0)
                 continue
             if i == len(results)-1:
                 # have to use row before
@@ -95,10 +96,16 @@ def _removeShortStates(results, dt=timedelta(hours=4)):
                 # row after
                 results.loc[i+1, 'seg_start_datetime'] =\
                     row['seg_start_datetime']
+                # set the vals of the current row to be those of row after
+                results.loc[i, :] = results.loc[i+1, :]
+                results.loc[i, 'length'] = timedelta(seconds=0)
             else:
                 # row before
                 results.loc[i-1, 'seg_end_datetime'] =\
                     row['seg_end_datetime']
+                # set the vals of the current row to be those of row before
+                results.loc[i, :] = results.loc[i-1, :]
+                results.loc[i, 'length'] = timedelta(seconds=0)
 
     results = results[results['length'] > dt]
     results = results.drop('length', axis=1)
@@ -122,36 +129,42 @@ def computeMeanTransitTimes(transit_times):
             sdev: standard deviation of entire (non-segmentized) trace
     '''
     transit_times = np.array(transit_times)
+    if len(transit_times) < 2:
+        return None, None
     to_seconds_vectorized = np.vectorize(lambda x: x.total_seconds())
     transit_times_s = transit_times.copy()
-    transit_times_s[:, 1] = to_seconds_vectorized(transit_times[:, 1])
+    transit_times_s[:, 2] = to_seconds_vectorized(transit_times[:, 2])
 
     # Remove negative times:
     transit_times_filtered = transit_times_s[
-        transit_times_s[:, 1] > 0]
+        transit_times_s[:, 2] > 0]
+    if len(transit_times_filtered) < 2:
+        return None, None
 
     # remove outliers 40 sigma beyond mean.
-    w1s = w1(transit_times_filtered[:, 1])
+    w1s = w1(transit_times_filtered[:, 2])
     sigma = sdevFromW1(w1s)
+    if sigma == 0:
+        return None, None
 
     transit_times_filtered = transit_times_filtered[(
-        np.abs((transit_times_filtered[:, 1]) - np.median(
-            (transit_times_filtered[:, 1]))) < 40 * sigma)
+        np.abs((transit_times_filtered[:, 2]) - np.median(
+            (transit_times_filtered[:, 2]))) < 40 * sigma)
             ]
     # if the time series is zero, return None
     if len(transit_times_filtered) == 0:
         return None, None
 
     fit, means, sdevs, results, MDLs = fitSTaSIModel(
-        transit_times_filtered[:, 1])
+        transit_times_filtered[:, 2])
     if results is None:
         return None, None
     # currently the results dataframe contains indices;
     # make those into time stamps.
     start_stamps = np.asarray(
-        transit_times_filtered[:, 0])[results['start'].values]
+        transit_times_filtered[:, 1])[results['start'].values]
     stop_stamps = np.asarray(
-        transit_times_filtered[:, 0])[results['stop'].values]
+        transit_times_filtered[:, 1])[results['stop'].values]
     results['seg_start_datetime'] = start_stamps
     results['seg_end_datetime'] = stop_stamps
     results = results.drop('start', axis=1)
