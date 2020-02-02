@@ -160,6 +160,12 @@ class Stop(Base):
         back_populates='stop'
     )
 
+    line_ids = relationship(
+        'Line_stops',
+        order_by='asc(Line_stops.line_id)',
+        back_populates='stop'
+    )
+
     def __init__(self, stop_id, name, stop_code=None,
                  desc=None, stop_lat=None, stop_lon=None,
                  zone_id=None, stop_url=None,
@@ -335,3 +341,42 @@ class Vehicle_message(Base):
         self.last_moved_at = last_moved_at
         self.current_stop_sequence = current_stop_sequence
         self.effective_timestamp = effective_timestamp
+
+
+class Line(Base):
+    __tablename__ = 'Line'
+
+    id = Column(Integer, primary_key=True)
+
+    name = Column(String, nullable=False)
+    direction = Column(String, nullable=False)
+    effective_timestamp = Column(DateTime, nullable=False)
+
+    stops = relationship('Line_stops',
+                         order_by='asc(Line_stops.sequence)',
+                         back_populates='line')
+
+    def __init__(self, name, direction, effective_timestamp):
+        self.name = name
+        self.direction = direction
+        self.effective_timestamp = effective_timestamp
+
+
+class Line_stops(Base):
+    '''Junction table, orders stations in a line'''
+    __tablename__ = 'Line_stops'
+
+    id = Column(Integer, primary_key=True)
+    stop_id = Column(String, ForeignKey('Stop.id'), nullable=True)
+    line_id = Column(Integer, ForeignKey('Line.id'), nullable=False)
+    sequence = Column(Integer, nullable=False)
+
+    stop = relationship('Stop',
+                        back_populates='line_ids')
+    line = relationship('Line',
+                        back_populates='stops')
+
+    def __init__(self, stop_id, line_id, sequence):
+        self.stop_id = stop_id
+        self.line_id = line_id
+        self.sequence = sequence

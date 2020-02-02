@@ -6,7 +6,9 @@ from mtatracking_v2.models import (
     Stop,
     Trains_stopped,
     Trip_update,
-    Transit_time_fit
+    Transit_time_fit,
+    Line,
+    Line_stops
 )
 from mtatracking_v2.mean_transit_times import (
     getTransitTimes,
@@ -119,6 +121,41 @@ def getStationIDsAlongLine_ordered(
         s for _, s in sorted(zip(avg_departure_times, stations_along_line))]
 
     return stations_ordered
+
+
+def depositStationsInLineInDB(line_name, direction, station_IDs_ordered,
+                              timestamp, session):
+    '''Update the line definition in the database
+    Args:
+        line_name: name of the subway line (e.g. 'Q')
+        direction: direction (N or S)
+        station_IDs_ordered: output of getStationIDsAlongLine_ordered
+        timestamp: timestamp to associate with this line definition
+        session: SQLAlchemy session to our database
+    '''
+    line = Line(line_name, direction, timestamp)
+    session.add(line)
+    session.flush()
+    for i, station_id in enumerate(station_IDs_ordered):
+        lstop = Line_stops(station_id, line.id, i)
+        session.add(lstop)
+    session.commit()
+
+
+def updateAllLineDefinitionsInDB(time_start, time_end, session):
+    '''From historic data compute the definition of all lines and
+    deposit into database'''
+
+    lines = getDistinctLines(session)
+    directions = ['N', 'S']
+    for line in lines:
+        for direction in directions:
+            print('working on line ' + line + direction)
+            ordered_stations = getStationIDsAlongLine_ordered(
+                        line, direction, time_start, time_end, session)
+            print('have stations, depositing')
+            depositStationsInLineInDB(line, direction, ordered_stations,
+                                      time_start, session)
 
 
 def getStationObjectsAlongLine_ordered(
