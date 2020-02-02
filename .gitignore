@@ -11,3 +11,4 @@ tests.py
 .vscode/settings.json
 __pycache__/scrape_MTA_feeds.cpython-37.pyc
 sql_queries/test.sql
+__pycache__/get_feature_matrix.cpython-37.pyc
