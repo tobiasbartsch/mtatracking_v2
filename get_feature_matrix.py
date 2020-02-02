@@ -1,4 +1,5 @@
 from pkgutil import get_data
+import pandas as pd
 
 
 def getTransitTimeMatrix(origin_id, dest_id, line_id, direction,
@@ -20,12 +21,28 @@ def getTransitTimeMatrix(origin_id, dest_id, line_id, direction,
         session: the SQLAlchemy database session.
 
     Returns:
-        transit_times
+        features, labels: dataframe of features. labels are the observed
+                          transit times
     '''
     sqltext = get_data(
         'mtatracking_v2', 'sql_queries/featurematrix_transitTime.sql')
     transit_times_matrix = session.execute(
         sqltext.decode("utf-8").format(origin_id, dest_id, line_id, direction,
                                        time_start, time_end)
-        ).fetchall()
-    return transit_times_matrix
+        )
+    df = pd.DataFrame(transit_times_matrix.fetchall(),
+                      columns=transit_times_matrix.keys())
+    df.set_index(['origin_time',
+                  'train_unique_num',
+                  'transit_time',
+                  'arrival_time',
+                  'stop_id'], inplace=True)
+
+    features = df.unstack(level=-1)
+    features.columns = ['_'.join(col).strip() for
+                        col in features.columns.values]
+    features = features.reset_index()
+    labels = features['transit_time']
+    features = features.drop(labels=['transit_time', 'arrival_time'], axis=1)
+
+    return features, labels
