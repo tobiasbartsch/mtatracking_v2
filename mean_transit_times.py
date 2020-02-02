@@ -14,8 +14,6 @@ def getTransitTimes(origin_id, dest_id, line_id,
         origin_id (string): id of the origin station
         dest_id (string): id of the destination station
         line_id (string): id of the subway line, for example 'Q'
-        direction (string): direction. We currently only support 'N' or 'S'.
-                            This could change if the MTA changes their mind.
         time_start (datetime): timepoint in the historic data at which to
                                start the computation
         time_end (datetime): timepoint in the historic data at which to
