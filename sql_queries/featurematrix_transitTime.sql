@@ -35,10 +35,10 @@ ORDER BY ls.sequence
 /* get status of stops_this_line at the origin times.
 In particular, we want: last stop time, delay sdevs of that last train */
 all_stopped_trains_this_line AS (
-SELECT stop_id, MAX(stop_time) as stop_time, delayed_magnitude
+SELECT stop_id, tu.id, MAX(stop_time) as stop_time, delayed_magnitude
 FROM ts_filtered AS ts 
 INNER JOIN public."Trip_update" AS tu ON ts.trip_update_id = tu.id
-GROUP BY stop_id, delayed_magnitude, tu.line_id, tu.direction
+GROUP BY stop_id, tu.id, delayed_magnitude, tu.line_id, tu.direction
 HAVING tu.line_id = '{2}' AND tu.direction = '{3}' AND ts.stop_id IN (SELECT stop_id FROM stops_this_line)
 ORDER BY ts.stop_id
 ),
