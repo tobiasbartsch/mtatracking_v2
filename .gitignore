@@ -12,3 +12,5 @@ tests.py
 __pycache__/scrape_MTA_feeds.cpython-37.pyc
 sql_queries/test.sql
 __pycache__/get_feature_matrix.cpython-37.pyc
+webapp/__pycache__/MeanTransitTimeView.cpython-37.pyc
+webapp/__pycache__/getMeanTransitData.cpython-37.pyc
