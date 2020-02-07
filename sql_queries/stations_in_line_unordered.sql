@@ -4,7 +4,7 @@ SELECT ts.stop_id, COUNT(t.unique_num) as cnt
 FROM public."Trains_stopped" AS ts
 JOIN public."Train" AS t on (ts.train_unique_num = t.unique_num)
     JOIN public."Trip_update" as tup ON (tup.train_unique_num = t.unique_num)
-WHERE t.route_id = '{}' AND tup.direction = '{}' AND ts.stop_time > '{}' AND ts.stop_time < '{}'
+WHERE t.route_id = '{0}' AND tup.direction = '{1}' AND ts.stop_time > '{2}' AND ts.stop_time < '{3}'
 GROUP BY ts.stop_id
 ),
 /* plan: find the intersection of all trains that visited these
