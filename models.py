@@ -184,6 +184,10 @@ class Stop(Base):
     def __repr__(self):
         return self.name + ' (' + self.id + ')'
 
+    @property
+    def stop_id(self):
+        return id
+
 
 class Trains_stopped(Base):
     '''junction table. Which trains stopped at what stops?
