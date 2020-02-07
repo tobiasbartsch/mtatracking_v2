@@ -200,4 +200,5 @@ def populate_database_with_fit_results(session, results, sdev, origin_id,
     results.to_sql('Mean_transit_time', session.connection(),
                    if_exists='append', index=False)
     session.commit()
+    print('deposited ' + origin_id + ' to ' + destination_id)
     return newfit
