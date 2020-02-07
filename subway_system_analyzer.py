@@ -18,6 +18,14 @@ from mtatracking_v2.mean_transit_times import (
 from sqlalchemy.orm.exc import NoResultFound
 
 
+def StationCodesToNames(codes, session):
+    '''convert a list of station codes to station names'''
+    stations = session.query(Stop).filter(Stop.id.in_(codes)).all()
+    stations_sorted = sorted(stations, key=lambda x: codes.index(x.id))
+    station_names = [station.name for station in stations_sorted]
+    return station_names
+
+
 def getDistinctLines(session):
     '''return set of distinct subway lines in system'''
     lines = session.query(Trip_update.line_id).distinct()\
@@ -52,7 +60,10 @@ def getStationsAlongLine(line_id, direction, time_start, time_end, session):
         sqltext.decode("utf-8").format(line_id, direction,
                                        time_start, time_end)
         ).fetchall()
-    stations = list(np.array(stations)[:, 0])
+    if stations:
+        stations = list(np.array(stations)[:, 0])
+    else:
+        print('warning, no stations found')
     return list(stations)
 
 
@@ -206,6 +217,24 @@ def findDelaysAndSetDelayedAttrib(time_start, time_end, session):
             thisHTD.checkAllTrainsInLine(n=8)
 
 
+def getLatestSavedLinedefinition(line_id, direction, session):
+    '''retrieve an ordered list of stations from the database.
+    You must have previously computed this ordered list and saved it.
+    Computing the ordered list is computationally expensive, so use this
+    function instead of a recomputation whenever possible.'''
+
+    sqltext = get_data('mtatracking_v2',
+                       'sql_queries/retrieve_ordered_stations.sql')
+    stations = session.execute(
+        sqltext.decode("utf-8").format(line_id, direction)
+        ).fetchall()
+    if len(stations) > 1:
+        stations = list(np.array(stations)[:, 0])
+    else:
+        return []
+    return list(stations)
+
+
 class historicTrainDelays():
     '''finds train delays in historic data and can update database'''
 
@@ -230,6 +259,7 @@ class historicTrainDelays():
 
         self.meansAndSdev_fit_dict = self.getHistoricMeansAndSdevs()
         self.trains = self.getTrains()
+        self.getHistoricMeansAndSdevs()
 
     def getTrains(self):
         self.trains = self.session.query(Train).join(Trip_update).filter(
@@ -262,7 +292,7 @@ class historicTrainDelays():
 
         return self.meansAndSdev_fit_dict
 
-    def checkDelaysOfTrain(self, train, n=8):
+    def checkDelaysOfTrain(self, train, n=8, many_trains=False):
         '''for each stop of this train, check whether we had a delay.
         If there was a delay, update the Trains_stopped object.
 
@@ -271,52 +301,74 @@ class historicTrainDelays():
             n (float): number of standard deviations beyond mean for
                        which we call a train delayed.
         '''
-        self.getHistoricMeansAndSdevs()
-
         for orig, dest in zip(train.stopped_at[::-1][:-1],
                               train.stopped_at[::-1][1:]):
             transit_time = dest.stop_time - orig.stop_time
             # compare to mean and sdev
-            if (orig.stop_id, dest.stop_id) in self.meansAndSdev_fit_dict:
-                fit = self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)]
-            else:
-                # we haven't yet performed this fit, do it now
-                transit_times = getTransitTimes(
-                    orig.stop_id, dest.stop_id,
-                    self.line_id, self.time_start, self.time_end, self.session)
-                res, sdev = computeMeanTransitTimes(transit_times)
-                if res is None:
-                    continue
-                fit = populate_database_with_fit_results(
-                    self.session, res, sdev, orig.stop_id, dest.stop_id,
-                    self.line_id, self.direction, self.time_start,
-                    self.time_end)
-                self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)] = fit
-
-            # determine delay
-            # find the correct mean (we need the one that
-            # belongs to our timestamp)
-            sdev = None
-            median = None
-            for mean_tt in fit.medians:
-                if ((dest.stop_time >= mean_tt.seg_start_datetime)
-                   and (dest.stop_time <= mean_tt.seg_end_datetime)):
-                    median = mean_tt.median
-                    sdev = mean_tt.sdev
+            median, sdev = self.getMedianTravelTime(
+                orig, dest, dest.stop_time)
             if median and sdev:
                 if transit_time > timedelta(seconds=(median + n*sdev)):
                     dest.delayed = True
-                    self.session.commit()
+                    if many_trains is False:
+                        self.session.commit()
                 else:
                     dest.delayed = False
-                    self.session.commit()
+                    if many_trains is False:
+                        self.session.commit()
                 dest.delayed_magnitude = (
                     transit_time - timedelta(seconds=median))\
                     / timedelta(seconds=sdev)
+        if many_trains is False:
+            self.session.commit()
 
+    def getMedianTravelTime(self, orig, dest, timestamp):
+        '''Return the median travel time between orig and dest
+        at time timestamp
+
+        Args:
+            orig (Stop ORM object)
+            dest (Stop ORM object)
+            timestamp (datetime)
+
+        Returns:
+            median, sdev
+        '''
+
+        if (orig.stop_id, dest.stop_id) in self.meansAndSdev_fit_dict:
+            fit = self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)]
+        else:
+            # we haven't yet performed this fit, do it now
+            transit_times = getTransitTimes(
+                orig.stop_id, dest.stop_id,
+                self.line_id, self.time_start, self.time_end, self.session)
+            print('new fit, ' + orig.stop_id + ' to ' + dest.stop_id)
+            res, sdev = computeMeanTransitTimes(transit_times)
+            if res is None:
+                self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)] = None
+                return None, None
+            fit = populate_database_with_fit_results(
+                self.session, res, sdev, orig.stop_id, dest.stop_id,
+                self.line_id, self.direction, self.time_start,
+                self.time_end)
+            self.meansAndSdev_fit_dict[(orig.stop_id, dest.stop_id)] = fit
+
+        # determine delay
+        # find the correct mean (we need the one that
+        # belongs to our timestamp)
+        sdev = None
+        median = None
+        if fit:
+            for mean_tt in fit.medians:
+                if ((timestamp >= mean_tt.seg_start_datetime)
+                        and (timestamp <= mean_tt.seg_end_datetime)):
+                    median = mean_tt.median
+                    sdev = mean_tt.sdev
+        return median, sdev
+
+    def checkAllTrainsInLine(self, n=8, many_trains=True):
+        print('numtrains to process: ', len(self.trains))
+        for i, train in enumerate(self.trains):
+            print(i)
+            self.checkDelaysOfTrain(train, n, many_trains=many_trains)
         self.session.commit()
-
-    def checkAllTrainsInLine(self, n=8):
-
-        for train in self.trains:
-            self.checkDelaysOfTrain(train, n)
