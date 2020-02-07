@@ -1,0 +1,52 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Subway Status</title>
+  <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='cover.css') }}">
+</head>
+
+<body class="text-center">
+    <br>
+    <div class="cover-container h-50 d-100">
+        {% for message in get_flashed_messages() %}
+            <div class="flash alert alert-success" role="success">{{ message }}</div>
+        {% endfor %}
+    </div>
+    <div class="cover-container d-flex h-100 p-3 mx-auto flex-column">
+        <header class="masthead mb-auto">
+            <div class="inner">
+            <h3 class="masthead-brand">Subway Status</h3>
+            <nav class="nav nav-masthead justify-content-center">
+                <a class="nav-link" href="{{ url_for('realtime_delays') }}">Realtime Delays</a>
+                <a class="nav-link" href="{{ url_for('systematic_delays') }}">Systematic Delays</a>
+                <a class="nav-link" href="{{ url_for('transit_time_prediction') }}">Predict Transit Times</a>
+                <a class="nav-link" href="{{ url_for('about') }}">About</a>
+                <a class="nav-link" href="https://github.com/tobiasbartsch/mtatracking_v2">Github</a>
+            </nav>
+            </div>
+        </header>
+
+        <main role="main" class="inner cover">
+            <p class="lead">Real-time delays in the NYC subway. Each dot is a train. Red indicates delays, blue good service.</p>
+            <div class=container>
+            </div>
+         <div class="embed-wrapper">
+                {{ script|safe }}
+         </div>
+
+        </main>
+        <footer class="mastfoot mt-auto">
+            <div class="inner">
+                <p>Cover template for <a href="https://getbootstrap.com/">Bootstrap</a>, by <a href="https://twitter.com/mdo">@mdo</a>.</p>
+            </div>
+      </footer>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+</body>
+</html>
