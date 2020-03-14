@@ -73,13 +73,13 @@ class MeanTransitTimes(Stream):
                   if k in best_transit_times and k in latest_transit_times
                   else 0 for k in keys}
         segs = [{('x', 'y'): self.rectangle(
-            x * 1.5 * width - 9, -0.05, width=width, height=0.1),
+            0, x * 1.5 * width - 9, width=0.3, height=width),
             'level': levels[k]} for x, k in enumerate(keys)]
         stations = [{('x', 'y'): hv.Ellipse(
-            x * 1.5 * width - width / 4 - 9, 0, (width / 2, width / 2))
+            width/2, x * 1.5 * width - width / 4 - 9, (2*width, width / 2))
                 .array()} for x in range(numstations)]
-        station_names_hv = [hv.Text(x * 1.5 * width - width / 4 - 9, 0.3, station)
-                            .opts(angle=90, text_align='left', text_font='Arial',
+        station_names_hv = [hv.Text(1, x * 1.5 * width - width / 4 - 9, station)
+                            .opts(text_align='left', text_font='Arial',
                             text_font_size='14px', text_color='white') for x, station
                             in enumerate(station_names)]
         return segs, stations, station_names_hv
@@ -92,10 +92,10 @@ class MeanTransitTimes(Stream):
                 color='level',
                 line_width=0,
                 padding=0.1,
-                height=325,
-                cmap=cc.CET_L4[:5:-1],
-                xlim=(-10, 10),
-                ylim=(-0.5, 5),
+                height=1000,
+                cmap=cc.CET_L4[125:5:-1],
+                xlim=(-1, 19),
+                ylim=(-10, 10),
                 tools=[MeanTransitTimes.hover_delays])\
             * hv.Polygons(stations).opts(
                 fill_color=None,

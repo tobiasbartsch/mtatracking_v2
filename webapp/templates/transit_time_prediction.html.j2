@@ -32,18 +32,24 @@
 
         <main role="main" class="inner cover">
             <p class="lead">Predicting transit times.</p>
-            <div class=container>
+            <div class="jumbotron">
+                <p class="lead">The current travel time between Grand Army Plaza and 125th St (northbound 2) is: </p>
+                 <h1 class="display-4">{{my_prediction}} min</h1>
+                <hr class="my-4">
+                <p>The MTA's prediction for the same route is <em>{{mta_prediction}} min</em>.</p>
             </div>
-         <figure class="figure img-fluid">
-                  <img src="{{url_for('static', filename='transit-time-predictions.jpg')}}" width=800px />
-         </figure>
+         <div class="jumbotron">
+            <p class="lead">Model validation on test data. </p>
+                {{ script|safe }}
+         </div>
+
 
         </main>
-        <footer class="mastfoot mt-auto">
+{#         <footer class="mastfoot mt-auto">
             <div class="inner">
                 <p>Cover template for <a href="https://getbootstrap.com/">Bootstrap</a>, by <a href="https://twitter.com/mdo">@mdo</a>.</p>
             </div>
-      </footer>
+      </footer> #}
     </div>
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>

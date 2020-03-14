@@ -94,13 +94,14 @@ def makeBestAndLatestTransitTimesDicts(fits):
     return best_transit_times_line, latest_transit_times_line
 
 
-def getData(session):
+def getData(session, day='Weekday', hour=8):
     fits = getTransitTimeFits(session)
     best_transit_times_line, latest_transit_times_line\
         = makeBestAndLatestTransitTimesDicts(fits)
 
     linedefs = {
-        k: getLatestSavedLinedefinition(k.split()[0], k.split()[1], session)
+        k: getLatestSavedLinedefinition(k.split()[0], k.split()[1],
+                                        day, hour, session)
         for k in best_transit_times_line.keys()}
 
     station_names = {

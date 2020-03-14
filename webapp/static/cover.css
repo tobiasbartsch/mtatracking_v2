@@ -30,6 +30,10 @@ body {
   background-color: #333;
 }
 
+.jumbotron {
+  background-color: #404040;
+}
+
 body {
   display: -ms-flexbox;
   display: -webkit-box;
@@ -43,7 +47,7 @@ body {
 }
 
 .cover-container {
-  max-width: 200em;
+  max-width: 400em;
 }
 
 
