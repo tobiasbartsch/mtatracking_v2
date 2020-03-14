@@ -374,13 +374,19 @@ class Line_stops(Base):
     stop_id = Column(String, ForeignKey('Stop.id'), nullable=True)
     line_id = Column(Integer, ForeignKey('Line.id'), nullable=False)
     sequence = Column(Integer, nullable=False)
+    day = Column(String, nullable=False)
+    from_hour = Column(Integer, nullable=False)
+    to_hour = Column(Integer, nullable=False)
 
     stop = relationship('Stop',
                         back_populates='line_ids')
     line = relationship('Line',
                         back_populates='stops')
 
-    def __init__(self, stop_id, line_id, sequence):
+    def __init__(self, stop_id, line_id, sequence, day, from_hour, to_hour):
         self.stop_id = stop_id
         self.line_id = line_id
         self.sequence = sequence
+        self.day = day
+        self.from_hour = from_hour
+        self.to_hour = to_hour

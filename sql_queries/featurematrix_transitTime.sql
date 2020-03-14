@@ -28,7 +28,8 @@ stops_this_line AS (
 SELECT stop_id
 FROM public."Line" as l INNER JOIN public."Line_stops" As ls
 ON l.id = ls.line_id
-WHERE l.name = '{2}' AND l.direction = '{3}'
+WHERE l.name = '{6}' AND l.direction = '{7}'
+AND from_hour < '{8}' and to_hour >= '{8}' AND day='{9}'
 ORDER BY ls.sequence
 ),
 
@@ -39,7 +40,7 @@ SELECT stop_id, tu.id, MAX(stop_time) as stop_time, delayed_magnitude
 FROM ts_filtered AS ts 
 INNER JOIN public."Trip_update" AS tu ON ts.trip_update_id = tu.id
 GROUP BY stop_id, tu.id, delayed_magnitude, tu.line_id, tu.direction
-HAVING tu.line_id = '{2}' AND tu.direction = '{3}' AND ts.stop_id IN (SELECT stop_id FROM stops_this_line)
+HAVING tu.line_id = '{6}' AND tu.direction = '{7}' AND ts.stop_id IN (SELECT stop_id FROM stops_this_line)
 ORDER BY ts.stop_id
 ),
 
