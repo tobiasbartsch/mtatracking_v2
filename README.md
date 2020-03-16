@@ -15,3 +15,6 @@ You can fit this model to your data using the historicTrainDelays class in the s
 - The two models described above generate the features for a third Random Forest model, which predicts the transit times between stations in the subway system. See PredictCurrentTransitTime.ipynb. This model is saved and then used for predictions by the webapp.
 
 (3) You can start the webapp by executing webapp/main.py.
+
+Here is a flowchart that summarizes the bullet points above:
+![how it works](https://github.com/tobiasbartsch/mtatracking_v2/blob/master/webapp/static/how_it_works.jpg)
