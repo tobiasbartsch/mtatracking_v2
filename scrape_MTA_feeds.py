@@ -1,10 +1,10 @@
 import sys
-sys.path.append('/home/tbartsch/source/repos')
+# sys.path.append('/home/tbartsch/source/repos')
 import time
 from urllib.request import Request
 import urllib.request
-import mtatracking_v2.gtfs_realtime_pb2 as gtfs_realtime_pb2
-from mtatracking_v2.SubwaySystem import SubwaySystem
+import gtfs_realtime_pb2 as gtfs_realtime_pb2
+from SubwaySystem import SubwaySystem
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
