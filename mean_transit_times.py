@@ -29,7 +29,6 @@ def getTransitTimes(origin_id, dest_id, line_id,
     if(time_end - time_start < timedelta(days=30)):
         print('warning: time should be at least one month')
     sqltext = get_data('mtatracking_v2', 'sql_queries/transit_times.sql')
-    print(sqltext)
     transit_times = session.execute(
         sqltext.decode("utf-8").format(origin_id, dest_id, line_id,
                                        time_start, time_end)

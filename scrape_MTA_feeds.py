@@ -16,8 +16,9 @@ def makeSubSys():
 
     Session = sessionmaker(bind=engine)
     session = Session()
+    session_fit_update = Session()
 
-    subsys = SubwaySystem(session)
+    subsys = SubwaySystem(session, session_fit_update)
     return subsys
 
 
