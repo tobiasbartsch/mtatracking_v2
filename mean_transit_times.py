@@ -3,6 +3,8 @@ from mtatracking_v2.STaSI import w1, fitSTaSIModel, sdevFromW1
 import numpy as np
 from mtatracking_v2.models import Transit_time_fit
 from datetime import timedelta
+import sys
+sys.path.append('/home/tbartsch/source/repos')
 
 
 def getTransitTimes(origin_id, dest_id, line_id,
@@ -23,9 +25,11 @@ def getTransitTimes(origin_id, dest_id, line_id,
     Returns:
         transit_times
     '''
+
     if(time_end - time_start < timedelta(days=30)):
         print('warning: time should be at least one month')
     sqltext = get_data('mtatracking_v2', 'sql_queries/transit_times.sql')
+    print(sqltext)
     transit_times = session.execute(
         sqltext.decode("utf-8").format(origin_id, dest_id, line_id,
                                        time_start, time_end)

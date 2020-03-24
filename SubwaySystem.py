@@ -4,8 +4,15 @@ from datetime import datetime as ddatetime
 from datetime import timedelta
 from sqlalchemy import desc
 import mtatracking_v2.nyct_subway_pb2 as nyct_subway_pb2
-
+from datetime import date
+from mtatracking_v2.mean_transit_times import (
+    getTransitTimes,
+    computeMeanTransitTimes,
+    populate_database_with_fit_results
+)
 from pytz import timezone
+
+from multiprocessing import Process
 
 from mtatracking_v2.models import (Train,
                                    Stop,
@@ -13,7 +20,8 @@ from mtatracking_v2.models import (Train,
                                    Trains_stopped,
                                    Trip_update,
                                    Alert_message,
-                                   Vehicle_message
+                                   Vehicle_message,
+                                   Transit_time_fit
                                    )
 
 
@@ -551,13 +559,25 @@ class SubwaySystem:
             for train in leftover_trains:
                 train.is_in_system_now = False
                 stopped_at = self.curr_trains_arr_st_dict[train.unique_num]
+                previous_stop_id = train.stopped_at[0].stop_id
+                transit_time = (
+                    current_time_dt - train.stopped_at[0].stop_time)\
+                    .total_seconds()
+                median, sdev = getMedianTravelTime(train.trip_updates[0].line_id,
+                                                   train.trip_updates[0].direction,
+                                                   previous_stop_id,
+                                                   stopped_at,
+                                                   self.session,
+                                                   N=60)
+                del_mag = (transit_time-median)/sdev
+
                 this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                     stopped_at,
                                                     train.unique_num,
                                                     train.trip_updates[0].id,
                                                     current_time_dt,
-                                                    delayed=False,
-                                                    delayed_magnitude=0,
+                                                    delayed=np.abs(del_mag) > 3,
+                                                    delayed_magnitude=del_mag,
                                                     delayed_MTA=False)
                 self.trainsstopped_counter += 1
                 self.session.add(this_train_stopped)
@@ -653,13 +673,24 @@ class SubwaySystem:
                 this_train.unique_num] = next_station
 
         if stopped_at:
+            previous_stop_id = this_train.stopped_at[0].stop_id
+            transit_time = (
+                current_time_dt - this_train.stopped_at[0].stop_time)\
+                .total_seconds()
+            median, sdev = getMedianTravelTime(this_train.trip_updates[0].line_id,
+                                                this_train.trip_updates[0].direction,
+                                                previous_stop_id,
+                                                stopped_at,
+                                                self.session,
+                                                N=60)
+            del_mag = (transit_time-median)/sdev
             this_train_stopped = Trains_stopped(self.trainsstopped_counter,
                                                 stopped_at,
                                                 this_train.unique_num,
                                                 this_trip.id,
                                                 current_time_dt,
-                                                delayed=False,
-                                                delayed_magnitude=0,
+                                                delayed=np.abs(del_mag) > 3,
+                                                delayed_magnitude=del_mag,
                                                 delayed_MTA=False)
             if stopped_at not in self.stop_ids:
                 this_stop = Stop(stopped_at, 'Unknown')
@@ -801,3 +832,76 @@ class SubwaySystem:
         direction = path_id[0]
         path_id = path_id[1:]
         return (origin_time, line, direction, path_id)
+
+
+def getMedianTravelTime(line_id, direction, orig, dest, session, N=60):
+    '''Return the latest median travel time between orig and dest.
+    Check whether a fit over the last N days exists. If no fit
+    with today's end date exists in the database, use the last existing one
+    but spawn a process to create and deposit a new fit.
+
+    Args:
+        line_id: line id , e.g. 'Q'
+        direction: e.g. 'N'
+        orig (Stop ORM object)
+        dest (Stop ORM object)
+
+    Returns:
+        median, sdev
+    '''
+
+    def getFit(orig, dest, line_id, time_start, time_end, session):
+        transit_times = getTransitTimes(
+            orig.id, dest.id,
+            line_id, time_start, time_end, session)
+        print('new fit, ' + orig.id + ' to ' + dest.id)
+        res, sdev = computeMeanTransitTimes(transit_times)
+        if res is None:
+            print('result is None')
+            return
+        print('populating DB')
+        populate_database_with_fit_results(
+            session, res, sdev, orig.id, dest.id,
+            line_id, direction, time_start,
+            time_end)
+
+    today = date.today()
+    start = today - timedelta(days=N)
+    meansAndSdev_fit = session.query(Transit_time_fit)\
+        .filter(
+                (Transit_time_fit.line_id == line_id)
+                & (start >= Transit_time_fit.fit_start_datetime)
+                & (today == Transit_time_fit.fit_end_datetime)
+                & (Transit_time_fit.stop_id_origin == orig.id)
+                & (Transit_time_fit.stop_id_destination == dest.id)
+                )\
+        .first()
+
+    if meansAndSdev_fit:
+        median = meansAndSdev_fit.medians[-1].median
+        sdev = meansAndSdev_fit.medians[-1].sdev
+    else:
+        # find the most recent fit and use it instead.
+        # If there is no fit, return None.
+        # spawn a process to fit and deposit today's data.
+        meansAndSdev_fit = session.query(Transit_time_fit)\
+            .filter(
+                (Transit_time_fit.line_id == line_id)
+                & (Transit_time_fit.stop_id_origin == orig.id)
+                & (Transit_time_fit.stop_id_destination == dest.id)
+                )\
+            .order_by(Transit_time_fit.fit_end_datetime.desc()).first()
+
+        if meansAndSdev_fit:
+            median = meansAndSdev_fit.medians[-1].median
+            sdev = meansAndSdev_fit.medians[-1].sdev
+        else:
+            median = None
+            sdev = None
+        # generate a new fit with today ast the end date.
+        p = Process(target=getFit, args=(
+            orig, dest, line_id, start, today, session))
+        p.daemon = False
+        p.start()
+
+    return median, sdev
